@@ -31,6 +31,11 @@
   :type 'file
   :group 'compilation-history)
 
+(defcustom compilation-history-command-truncate-length 25
+  "The length to truncate the compile command to in the buffer name."
+  :type 'integer
+  :group 'compilation-history)
+
 ;;; Database Schema
 
 (defconst compilation-history-db-schema
@@ -51,6 +56,46 @@
     output BLOB
   );"
   "SQL schema for the compilations table.")
+
+;;; Buffer Name
+
+(defun compilation-history--get-timestamp (&optional start-time)
+  "Return a timestamp string."
+  (or start-time
+      (format-time-string "%Y%m%dT%H%M%S%6N")))
+
+(defun compilation-history--get-path-string (default-directory)
+  "Return the path string for the buffer name."
+  (let* ((project-root (or (compilation-history--get-project-root default-directory)
+                           default-directory))
+         (project-name (file-name-nondirectory (directory-file-name project-root)))
+         (relative-path (file-relative-name default-directory project-root)))
+    (if (string-equal "." relative-path)
+        project-name
+      (mapconcat #'identity (cons project-name (split-string relative-path "/" t)) "--"))))
+
+(defun compilation-history--sanitize-command (compile-command)
+  "Return a sanitized version of the compile command."
+  (let* ((cmd (replace-regexp-in-string "[^a-zA-Z0-9-]" "-" compile-command))
+         (cmd (replace-regexp-in-string "-+" "-" cmd)))
+    (if (> (length cmd) compilation-history-command-truncate-length)
+        (substring cmd 0 compilation-history-command-truncate-length)
+      cmd)))
+
+(defun compilation-history--get-project-root (dir)
+  "Return the project root for DIR."
+  (when-let ((root (locate-dominating-file dir ".git")))
+    root))
+
+(defun compilation-history--generate-buffer-name (compile-command default-directory &optional start-time)
+  "Generate a unique buffer name for a compilation history buffer."
+  (let ((timestamp (compilation-history--get-timestamp start-time))
+        (path-string (compilation-history--get-path-string default-directory))
+        (command-sanitized (compilation-history--sanitize-command compile-command)))
+    (format "*compilation-history-%s==%s__%s*"
+            timestamp
+            path-string
+            command-sanitized)))
 
 ;;; Database Functions
 
