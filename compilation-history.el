@@ -210,23 +210,42 @@
     (with-current-buffer buffer
       (let* ((output (buffer-substring-no-properties (point-min) (point-max)))
              (killed (string-match-p "killed\|interrupt" status))
-             (exit-code (cond
-                         ((string-match "exited abnormally with code \\([0-9]+\\)" status)
-                          (string-to-number (match-string 1 status)))
-                         ((string-match-p "finished" status)
-                          0)
-                         (killed
-                          2)
-                         (t
-                          1))))
-        (compilation-history--update-compilation-record record-id exit-code output killed)))))
-
+             (exit-code (buffer-local-value 'compilation-history--exit-code buffer)))
+        (compilation-history--update-compilation-record record-id exit-code output killed))
+      (setq-local compilation-arguments nil)
+      ;; would be nice if we could switch to compilation-mode if in
+      ;; comint-mode since if we try to use C-u g or g to re-compile
+      ;; it doesn't work with a comint-mode buffer.  so maybe switch
+      ;; to compilation-mode without running any hooks? if that is
+      ;; possible
+      (if (eq major-mode 'comint-mode)
+          (setq-local buffer-read-only t)))))
 
 (defun compilation-history--kill-buffer-function ()
   "Function to handle when compilation buffer is killed."
   (when-let* ((record-id compilation-history--record-id))
     (let ((output (buffer-substring-no-properties (point-min) (point-max))))
       (compilation-history--update-compilation-record record-id -1 output t))))
+
+(defun compilation-history--add-sentinel-metadata-advice (proc msg)
+  "Simple debug advice for compilation-sentinel focusing on record-id and process."
+  (let* ((buffer (process-buffer proc)))
+    (with-current-buffer buffer
+      (setq-local compilation-history--exit-code (process-exit-status proc))
+      (setq-local compilation-history--message msg))))
+
+(defun compilation-history--maybe-save-history ()
+  "This is came about since if we close emacs and a compilation is still in
+progress we want to stop and save whatever output is present."
+  (when compilation-in-progress
+    (dolist (proc compilation-in-progress)
+      (let* ((buffer (process-buffer proc)))
+        (message "Killing compilation in buffer %s" (buffer-name buffer))
+        (with-current-buffer buffer
+          (call-interactively 'kill-compilation)
+          (sit-for .25)
+          (setq-local compilation-history--exit-code (process-exit-status proc))
+          (compilation-history--finish-function buffer "interrupt"))))))
 
 ;;; Recompile Support
 
@@ -265,8 +284,6 @@
 (defvar compilation-history--original-buffer-name-function nil)
 (defvar compilation-history--original-setup-function nil)
 
-
-
 (define-minor-mode compilation-history-mode
   "Toggle compilation history tracking."
   :global t
@@ -281,12 +298,17 @@
               compilation-process-setup-function)
         (setq compilation-process-setup-function
               #'compilation-history--setup-function)
-        (add-hook 'compilation-finish-functions #'compilation-history--finish-function))
+        (add-hook 'compilation-finish-functions #'compilation-history--finish-function)
+
+        (advice-add 'compilation-sentinel :before #'compilation-history--add-sentinel-metadata-advice)
+        (add-hook 'kill-emacs-hook #'compilation-history--maybe-save-history))
     (setq compilation-buffer-name-function
           compilation-history--original-buffer-name-function)
     (setq compilation-process-setup-function
           compilation-history--original-setup-function)
-    (remove-hook 'compilation-finish-functions #'compilation-history--finish-function)))
+    (remove-hook 'compilation-finish-functions #'compilation-history--finish-function)
+    (advice-remove 'compilation-sentinel #'compilation-history-add-sentinel-metadata-advice)
+    (remove-hook 'kill-emacs-hook #'compilation-history--maybe-save-history)))
 
 (provide 'compilation-history)
 

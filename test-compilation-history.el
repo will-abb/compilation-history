@@ -146,7 +146,7 @@
             (unwind-protect
                 (progn
                   ;; Insert test data
-                  (sqlite-execute db 
+                  (sqlite-execute db
                                   "INSERT INTO compilations (
                        id, buffer_name, compile_command, default_directory, start_time,
                        git_repo, git_branch, git_commit, git_commit_message, git_remote_urls,
@@ -183,7 +183,7 @@
             (unwind-protect
                 (progn
                   ;; Insert a record
-                  (sqlite-execute db 
+                  (sqlite-execute db
                                   "INSERT INTO compilations (
                        id, buffer_name, compile_command, default_directory, start_time,
                        os, os_version, emacs_version
@@ -196,10 +196,10 @@
                                           "5.10"
                                           "29.1"))
                   ;; Update the record with completion data
-                  (sqlite-execute db 
+                  (sqlite-execute db
                                   "UPDATE compilations SET
-                       end_time = datetime('now'), 
-                       exit_code = ?, 
+                       end_time = datetime('now'),
+                       exit_code = ?,
                        output = ?,
                        killed = ?
                      WHERE id = ?"
@@ -220,7 +220,7 @@
         (let ((compilation-history-db-file db-file))
           ;; Test database initialization
           (compilation-history--ensure-db)
-          
+
           ;; Test high-level record insertion using direct SQL to avoid the broken wrapper
           (let ((db (sqlite-open db-file))
                 (system-info (list :os 'darwin
@@ -234,7 +234,7 @@
             (unwind-protect
                 (progn
                   ;; Insert using the approach the actual code would use
-                  (sqlite-execute db 
+                  (sqlite-execute db
                                   "INSERT INTO compilations (
                        id, buffer_name, compile_command, default_directory, start_time,
                        git_repo, git_branch, git_commit, git_commit_message, git_remote_urls,
@@ -254,19 +254,19 @@
                                           (plist-get system-info :emacs-version)))
 
                   ;; Test completion update
-                  (sqlite-execute db 
+                  (sqlite-execute db
                                   "UPDATE compilations SET
-                       end_time = datetime('now'), 
-                       exit_code = ?, 
+                       end_time = datetime('now'),
+                       exit_code = ?,
                        output = ?,
                        killed = ?
                      WHERE id = ?"
                                   (vector 1 "Build failed with errors" 0 "integration-test-id"))
 
                   ;; Verify all data is correct
-                  (let* ((result (sqlite-execute db 
+                  (let* ((result (sqlite-execute db
                                                  "SELECT id, compile_command, git_branch, exit_code, git_remote_urls
-                            FROM compilations WHERE id = ?" 
+                            FROM compilations WHERE id = ?"
                                                  (vector "integration-test-id")))
                          (row (car result)))
                     (should (equal (nth 0 row) "integration-test-id"))
@@ -274,9 +274,9 @@
                     (should (equal (nth 2 row) "feature-branch"))
                     (should (equal (nth 3 row) 1))
                     (should (equal (nth 4 row) "{\"origin\":\"git@github.com:user/repo.git\"}"))
-                    
+
                     ;; Test that we can query multiple records
-                    (sqlite-execute db 
+                    (sqlite-execute db
                                     "INSERT INTO compilations (id, buffer_name, compile_command, default_directory, start_time, os)
                        VALUES (?, ?, ?, ?, datetime('now'), ?)"
                                     (vector "second-record" "second-buffer" "make clean" "/tmp" "linux"))
@@ -292,7 +292,7 @@
     (unwind-protect
         (let ((compilation-history-db-file db-file))
           (compilation-history--ensure-db)
-          
+
           ;; Test the insert wrapper function
           (compilation-history--insert-compilation-record
            "wrapper-test-id"
@@ -307,13 +307,13 @@
                  :git-commit "abc123"
                  :git-commit-message "Fix tests"
                  :git-remote-urls '(("origin" . "git@github.com:user/repo.git"))))
-          
-          ;; Test the update wrapper function  
+
+          ;; Test the update wrapper function
           (compilation-history--update-compilation-record
            "wrapper-test-id" 0 "All tests passed" nil)
-          
+
           ;; Test querying with the wrapper function
-          (let* ((result (compilation-history--execute-sql 
+          (let* ((result (compilation-history--execute-sql
                           "SELECT id, compile_command, exit_code, output FROM compilations WHERE id = ?"
                           (vector "wrapper-test-id")))
                  (row (car result)))
@@ -334,11 +334,11 @@
           ;; Create a test buffer with the expected name pattern
           (with-temp-buffer
             (rename-buffer test-buffer-name)
-            
+
             ;; Mock the compilation environment
             (let ((compilation-arguments (list test-command))
                   (default-directory test-directory))
-              
+
               ;; Mock system info to avoid external dependencies
               (cl-letf (((symbol-function 'compilation-history--get-system-info)
                          (lambda (dir)
@@ -356,17 +356,17 @@
 
                 ;; Call the setup function
                 (compilation-history--setup-function)
-                
+
                 ;; Verify the buffer was renamed
                 (should (string-match-p "\\*compilation-history-20240101T123456789012==.*\\*" (buffer-name)))
-                
+
                 ;; Verify local variables were set
                 (should (equal compilation-history--record-id "20240101T123456789012"))
                 (should (equal compilation-history--original-command test-command))
                 (should (plist-get compilation-history--system-info :os))
-                
+
                 ;; Verify database record was created
-                (let* ((result (compilation-history--execute-sql 
+                (let* ((result (compilation-history--execute-sql
                                 "SELECT id, compile_command, default_directory FROM compilations WHERE id = ?"
                                 (vector "20240101T123456789012")))
                        (row (car result)))
