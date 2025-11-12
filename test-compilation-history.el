@@ -293,20 +293,17 @@
         (let ((compilation-history-db-file db-file))
           (compilation-history--ensure-db)
 
+          (setq-local compilation-history-record (make-compilation-history :record-id "wrapper-test-id" :buffer-name "*compilation-history-wrapper-test*" :compile-command "npm run test" :default-directory "/path/to/project" :system-info (list :os 'darwin
+                                                                                                                                                                                                                                                   :os-version "14.0"
+                                                                                                                                                                                                                                                   :emacs-version "29.1"
+                                                                                                                                                                                                                                                   :git-repo "/path/to/test-repo"
+                                                                                                                                                                                                                                                   :git-branch "main"
+                                                                                                                                                                                                                                                   :git-commit "abc123"
+                                                                                                                                                                                                                                                   :git-commit-message "Fix tests"
+                                                                                                                                                                                                                                                   :git-remote-urls '(("origin" . "git@github.com:user/repo.git")))))
+
           ;; Test the insert wrapper function
-          (compilation-history--insert-compilation-record
-           "wrapper-test-id"
-           "*compilation-history-wrapper-test*"
-           "npm run test"
-           "/path/to/project"
-           (list :os 'darwin
-                 :os-version "14.0"
-                 :emacs-version "29.1"
-                 :git-repo "/path/to/test-repo"
-                 :git-branch "main"
-                 :git-commit "abc123"
-                 :git-commit-message "Fix tests"
-                 :git-remote-urls '(("origin" . "git@github.com:user/repo.git"))))
+          (compilation-history--insert-compilation-record compilation-history-record)
 
           ;; Test the update wrapper function
           (compilation-history--update-compilation-record
@@ -361,9 +358,9 @@
                 (should (string-match-p "\\*compilation-history-20240101T123456789012==.*\\*" (buffer-name)))
 
                 ;; Verify local variables were set
-                (should (equal compilation-history--record-id "20240101T123456789012"))
-                (should (equal compilation-history--original-command test-command))
-                (should (plist-get compilation-history--system-info :os))
+                (should (equal (compilation-history-record-id compilation-history-record) "20240101T123456789012"))
+                (should (equal (compilation-history-compile-command compilation-history-record) test-command))
+                (should (plist-get (compilation-history-system-info compilation-history-record) :os))
 
                 ;; Verify database record was created
                 (let* ((result (compilation-history--execute-sql
