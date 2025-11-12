@@ -310,11 +310,8 @@ progress we want to stop and save whatever output is present."
               #'compilation-history--partial-buffer-name)
         (setq compilation-process-setup-function
               #'compilation-history--setup-function)
-        (add-hook 'compilation-finish-functions #'compilation-history--finish-function)
-
         (advice-add 'compilation-sentinel :before #'compilation-history--add-sentinel-metadata-advice)
         (add-hook 'kill-emacs-hook #'compilation-history--maybe-save-history))
-    (remove-hook 'compilation-finish-functions #'compilation-history--finish-function)
     (advice-remove 'compilation-sentinel #'compilation-history-add-sentinel-metadata-advice)
     (remove-hook 'kill-emacs-hook #'compilation-history--maybe-save-history)))
 
