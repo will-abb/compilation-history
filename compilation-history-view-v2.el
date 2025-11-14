@@ -139,9 +139,11 @@
 
 (defun compilation-history-view-v2--format-command (command max-width)
   "Format COMMAND for display, truncating if longer than MAX-WIDTH."
-  (if (> (length command) max-width)
-      (concat (substring command 0 (max 0 (- max-width 3))) "...")
-    command))
+  (let* ((cleaned-command (replace-regexp-in-string (rx (one-or-more "\n")) " " command))
+         (no-extra-spaces (replace-regexp-in-string (rx (one-or-more " ")) " " cleaned-command)))
+    (if (> (length no-extra-spaces) max-width)
+        (concat (substring no-extra-spaces 0 (max 0 (- max-width 3))) "...")
+      no-extra-spaces)))
 
 (defun compilation-history-view-v2--format-directory (directory max-width)
   "Format DIRECTORY for display, truncating if longer than MAX-WIDTH."
