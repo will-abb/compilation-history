@@ -67,6 +67,9 @@ so column order does not affect data access."
 (defvar-local compilation-history-view--preview-mode nil
   "Whether preview mode is active.")
 
+(defvar-local compilation-history-view--preview-window nil
+  "The window used for previewing compilation buffers.")
+
 ;;; Getter
 
 (defun compilation-history-view--get-value (object column-def)
@@ -308,30 +311,41 @@ When DISABLED is non-nil, button is dimmed and non-interactive."
 
 ;;; Opening
 
-(defun compilation-history-view--display-record (record)
-  "Display compilation buffer for RECORD.
-Reuses existing buffer if still alive, otherwise creates from database.
-Returns the displayed buffer."
+(defun compilation-history-view--get-or-create-compilation-buffer (record)
+  "Get or create the compilation buffer for RECORD.
+Reuses existing buffer if still alive, otherwise creates from database."
   (let* ((buf-name (plist-get record :buffer-name))
          (id (plist-get record :id))
          (existing (get-buffer buf-name)))
-    (if existing
-        (progn (display-buffer existing) existing)
-      (let ((output (compilation-history--get-output id))
-            (buf (get-buffer-create buf-name)))
-        (with-current-buffer buf
-          (let ((inhibit-read-only t))
-            (erase-buffer)
-            (when output (insert output)))
-          (compilation-mode)
-          (setq buffer-read-only t))
-        (display-buffer buf)
-        buf))))
+    (or existing
+        (let ((output (compilation-history--get-output id))
+              (buf (get-buffer-create buf-name)))
+          (with-current-buffer buf
+            (let ((inhibit-read-only t))
+              (erase-buffer)
+              (when output (insert output)))
+            (compilation-mode)
+            (setq buffer-read-only t))
+          buf))))
+
+(defun compilation-history-view--display-record (record)
+  "Display compilation buffer for RECORD in the other window.
+When preview mode is active and the preview window is alive, reuses
+that window instead of opening a new one.
+Returns the displayed buffer."
+  (let ((buf (compilation-history-view--get-or-create-compilation-buffer record)))
+    (if (and compilation-history-view--preview-window
+            (window-live-p compilation-history-view--preview-window))
+        (set-window-buffer compilation-history-view--preview-window buf)
+      (let ((win (display-buffer buf '(nil (inhibit-same-window . t)))))
+        (setq compilation-history-view--preview-window win)))
+    buf))
 
 (defun compilation-history-view-open ()
   "Open the compilation record at point in other window and switch to it."
   (interactive)
   (setq compilation-history-view--preview-mode nil)
+  (setq compilation-history-view--preview-window nil)
   (if-let* ((object (vtable-current-object)))
       (let* ((buf (compilation-history-view--display-record object))
              (win (get-buffer-window buf)))
@@ -376,12 +390,13 @@ No-op if preview mode is not active."
   "Search compilation history (not yet implemented)." (interactive) (message "Search not yet implemented"))
 
 (defun compilation-history-view--check-preview-mode ()
-  "Deactivate preview mode if we've left the view buffer."
-  (unless (eq major-mode 'compilation-history-view-mode)
-    (when-let* ((view-buf (get-buffer "*Compilation History*")))
-      (with-current-buffer view-buf
-        (when compilation-history-view--preview-mode
-          (setq compilation-history-view--preview-mode nil))))))
+  "Deactivate preview mode if the view buffer is no longer in the selected window."
+  (when-let* ((view-buf (get-buffer "*Compilation History*")))
+    (when (buffer-local-value 'compilation-history-view--preview-mode view-buf)
+      (unless (eq (window-buffer (selected-window)) view-buf)
+        (with-current-buffer view-buf
+          (setq compilation-history-view--preview-mode nil)
+          (setq compilation-history-view--preview-window nil))))))
 
 (provide 'compilation-history-view)
 ;;; compilation-history-view.el ends here
