@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+#MISE description="Install MELPA check dependencies (package-lint) into .melpa-deps/"
+set -euo pipefail
+
+DEPS_DIR="${MISE_PROJECT_DIR:-.}/.melpa-deps"
+
+if [ -f "$DEPS_DIR/package-lint.el" ]; then
+  echo "Dependencies already installed in $DEPS_DIR"
+  exit 0
+fi
+
+echo "Installing package-lint into $DEPS_DIR..."
+mkdir -p "$DEPS_DIR"
+
+emacs --batch \
+  --eval "(require 'package)" \
+  --eval "(setq package-user-dir \"$DEPS_DIR\")" \
+  --eval "(add-to-list 'package-archives '(\"melpa\" . \"https://melpa.org/packages/\") t)" \
+  --eval "(package-initialize)" \
+  --eval "(package-refresh-contents)" \
+  --eval "(package-install 'package-lint)"
+
+echo "Dependencies installed to $DEPS_DIR"

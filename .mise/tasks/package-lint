@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+#MISE description="Run package-lint for MELPA compliance"
+#MISE depends=["deps"]
+set -euo pipefail
+
+DEPS_DIR="${MISE_PROJECT_DIR:-.}/.melpa-deps"
+PROJECT="${MISE_PROJECT_DIR:-.}"
+
+# Find all source .el files (exclude test files)
+src_files=()
+for f in "$PROJECT"/compilation-history*.el; do
+  [ -f "$f" ] || continue
+  case "$(basename "$f")" in
+    test-*) continue ;;
+  esac
+  src_files+=("$f")
+done
+
+echo "Running package-lint on: ${src_files[*]##*/}"
+
+emacs --batch \
+  -L "$PROJECT" \
+  -L "$DEPS_DIR" \
+  --eval "(require 'package)" \
+  --eval "(setq package-user-dir \"$DEPS_DIR\")" \
+  --eval "(add-to-list 'package-archives '(\"melpa\" . \"https://melpa.org/packages/\") t)" \
+  --eval "(package-initialize)" \
+  --eval "(require 'package-lint)" \
+  -f package-lint-batch-and-exit \
+  "${src_files[@]}"
+
+echo "OK: package-lint passed"
