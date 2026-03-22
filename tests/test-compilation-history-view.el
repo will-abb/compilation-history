@@ -34,5 +34,50 @@
               :current-page 3 :total-records 100 :page-size 25)))
     (should (= (compilation-history-view--page-offset pag) 50))))
 
+(ert-deftest test-compilation-history-view--row-to-plist ()
+  "Database row is converted to a plist with all fields."
+  (let* (;; Simulate a SQLite row as a list matching SELECT * column order:
+         ;; id, buffer_name, compile_command, default_directory, start_time,
+         ;; end_time, exit_code, killed, git_repo, git_branch, git_commit,
+         ;; git_commit_message, git_remote_urls, os, os_version, emacs_version,
+         ;; output, duration_seconds (computed by SQL)
+         (row '("20260321T120000" "*compilation*" "make test" "/project/"
+                "2026-03-21 12:00:00" "2026-03-21 12:00:05" 0 0
+                "/project/" "main" "abc1234def" "commit msg"
+                "[]" "darwin" "15.0" "29.1" nil 5.0))
+         (plist (compilation-history-view--row-to-plist row 0)))
+    (should (equal (plist-get plist :id) "20260321T120000"))
+    (should (equal (plist-get plist :buffer-name) "*compilation*"))
+    (should (equal (plist-get plist :command) "make test"))
+    (should (equal (plist-get plist :directory) "/project/"))
+    (should (equal (plist-get plist :branch) "main"))
+    (should (equal (plist-get plist :commit) "abc1234def"))
+    (should (equal (plist-get plist :exit-code) 0))
+    (should (equal (plist-get plist :status) "success"))))
+
+(ert-deftest test-compilation-history-view--row-to-plist-status ()
+  "Status is correctly derived from exit-code and killed fields."
+  ;; Killed
+  (let* ((row '("id1" "*buf*" "make" "/" "2026-03-21 12:00:00" "2026-03-21 12:00:05"
+                1 1 nil nil nil nil nil nil nil nil nil 5.0))
+         (plist (compilation-history-view--row-to-plist row)))
+    (should (equal (plist-get plist :status) "killed")))
+  ;; Failure
+  (let* ((row '("id2" "*buf*" "make" "/" "2026-03-21 12:00:00" "2026-03-21 12:00:05"
+                2 0 nil nil nil nil nil nil nil nil nil 5.0))
+         (plist (compilation-history-view--row-to-plist row)))
+    (should (equal (plist-get plist :status) "failure")))
+  ;; Running (no end_time)
+  (let* ((row '("id3" "*buf*" "make" "/" "2026-03-21 12:00:00" nil
+                nil 0 nil nil nil nil nil nil nil nil nil nil))
+         (plist (compilation-history-view--row-to-plist row)))
+    (should (equal (plist-get plist :status) "running"))))
+
+(ert-deftest test-compilation-history-view--format-duration ()
+  "Duration formatting produces seconds with one decimal."
+  (should (equal (compilation-history-view--format-duration nil) ""))
+  (should (equal (compilation-history-view--format-duration 2.3) "2.3s"))
+  (should (equal (compilation-history-view--format-duration 65.0) "65.0s")))
+
 (provide 'test-compilation-history-view)
 ;;; test-compilation-history-view.el ends here
