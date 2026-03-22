@@ -299,19 +299,35 @@ INDEX is the 0-based row position within the current page."
          (on-first (= current 1))
          (on-last (= current total-pages)))
     (insert "\n")
-    ;; Build the pagination line in a temp buffer to measure its width
-    (let* ((line (concat "[First] [Previous]"
-                         (format " Page %d of %d (%d records) " current total-pages total-records)
-                         "[Next] [Last]"))
-           (padding (max 0 (/ (- (window-width) (length line)) 2))))
-      (insert (make-string padding ?\s))
+    (let* ((left-keys "RET:open │ SPC:preview │ n/p:nav │ s:search │ C-v/M-v:page")
+           (right-keys "g:refresh │ q:quit │ Q:kill-all")
+           (center (concat "[First] [Previous]"
+                           (format " Page %d of %d (%d records) " current total-pages total-records)
+                           "[Next] [Last]"))
+           (total-width (+ (length left-keys) 2 (length center) 2 (length right-keys)))
+           (center-padding (max 1 (/ (- (window-width) total-width) 3))))
+      ;; Left keys
+      (let ((sep (propertize " │ " 'face 'vtable)))
+        (insert (propertize "RET" 'face 'shadow) ":open" sep
+                (propertize "SPC" 'face 'shadow) ":preview" sep
+                (propertize "n/p" 'face 'shadow) ":nav" sep
+                (propertize "s" 'face 'shadow) ":search" sep
+                (propertize "C-v/M-v" 'face 'shadow) ":page"))
+      (insert (make-string center-padding ?\s))
+      ;; Center pagination
       (compilation-history-view--insert-button "First" #'compilation-history-view-first-page on-first)
       (insert " ")
       (compilation-history-view--insert-button "Previous" #'compilation-history-view-prev-page on-first)
       (insert (format " Page %d of %d (%d records) " current total-pages total-records))
       (compilation-history-view--insert-button "Next" #'compilation-history-view-next-page on-last)
       (insert " ")
-      (compilation-history-view--insert-button "Last" #'compilation-history-view-last-page on-last))))
+      (compilation-history-view--insert-button "Last" #'compilation-history-view-last-page on-last)
+      ;; Right keys
+      (insert (make-string center-padding ?\s))
+      (let ((sep (propertize " │ " 'face 'vtable)))
+        (insert (propertize "g" 'face 'shadow) ":refresh" sep
+                (propertize "q" 'face 'shadow) ":quit" sep
+                (propertize "Q" 'face 'shadow) ":kill-all")))))
 
 (defun compilation-history-view--insert-button (label action &optional disabled)
   "Insert a text button with LABEL that calls ACTION.
