@@ -533,7 +533,7 @@
 (ert-deftest test-compilation-history-view-search-capf-completes-columns ()
   "Search completion-at-point offers FTS column names."
   (let ((completions (mapcar (lambda (col) (concat col ":"))
-                             compilation-history-view--fts-columns)))
+                             compilation-history--fts-column-names)))
     (should (member "compile_command:" completions))
     (should (member "output:" completions))
     (should (member "default_directory:" completions))

@@ -513,10 +513,6 @@ Returns the displayed buffer."
         (compilation-history-view--display-record object)
         (select-window view-window)))))
 
-(defvaralias 'compilation-history-view--fts-columns
-  'compilation-history--fts-column-names
-  "Column names available for FTS column-specific searches.")
-
 (defun compilation-history-view--search-capf ()
   "Completion-at-point function for FTS column names in search minibuffer."
   (let* ((line (buffer-substring-no-properties (line-beginning-position) (point)))
@@ -526,7 +522,7 @@ Returns the displayed buffer."
                   (point))))
     (list start (point)
           (mapcar (lambda (col) (concat col ":"))
-                  compilation-history-view--fts-columns))))
+                  compilation-history--fts-column-names))))
 
 (defun compilation-history-view-search ()
   "Search compilation history using FTS.
