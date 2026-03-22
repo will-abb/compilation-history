@@ -79,5 +79,30 @@
   (should (equal (compilation-history-view--format-duration 2.3) "2.3s"))
   (should (equal (compilation-history-view--format-duration 65.0) "65.0s")))
 
+(ert-deftest test-compilation-history-view--getter-dispatches-on-key ()
+  "Getter extracts correct field from plist based on column :key."
+  (let* ((object '(:id "id1" :command "make test" :branch "main"
+                   :start-time "2026-03-21 12:00:00" :duration 5.0
+                   :status "success" :exit-code 0 :commit "abc1234def"
+                   :directory "/project/" :row-index 0))
+         (col-command '(:name "Command" :key :command))
+         (col-branch '(:name "Branch" :key :branch))
+         (col-commit '(:name "Commit" :key :commit)))
+    (should (equal (compilation-history-view--get-value object col-command) "make test"))
+    (should (equal (compilation-history-view--get-value object col-branch) "main"))
+    ;; Commit should be truncated to 7 chars
+    (should (equal (compilation-history-view--get-value object col-commit) "abc1234"))))
+
+(ert-deftest test-compilation-history-view--getter-row-number ()
+  "Row number getter computes from pagination offset + row-index."
+  (let* ((object '(:id "id1" :command "make" :row-index 3))
+         (col '(:name "#" :key :row-number))
+         (compilation-history-view--pagination
+          (make-compilation-history-view-pagination
+           :current-page 2 :total-records 50 :page-size 25)))
+    ;; Page 2, page-size 25, index 3 → row 29
+    ;; Offset = (2-1)*25 = 25, then 25 + 3 + 1 = 29 (1-based row numbers)
+    (should (= (compilation-history-view--get-value object col) 29))))
+
 (provide 'test-compilation-history-view)
 ;;; test-compilation-history-view.el ends here

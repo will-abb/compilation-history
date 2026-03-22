@@ -34,6 +34,61 @@
 Subtracts space for header-line and pagination controls."
   (max 1 (- (window-height) 4)))
 
+;;; Column Configuration
+
+(defcustom compilation-history-view-columns
+  '((:name "#" :key :row-number)
+    (:name "Start Time" :key :start-time)
+    (:name "Duration" :key :duration)
+    (:name "Status" :key :status)
+    (:name "Exit" :key :exit-code)
+    (:name "Commit" :key :commit)
+    (:name "Branch" :key :branch)
+    (:name "Directory" :key :directory)
+    (:name "Command" :key :command))
+  "Column definitions for the compilation history view.
+Each entry is a plist with :name (display header) and :key (data field keyword).
+Users can reorder, remove, or modify entries. The getter dispatches on :key,
+so column order does not affect data access."
+  :type '(repeat plist)
+  :group 'compilation-history)
+
+;;; Buffer-local state
+
+(defvar-local compilation-history-view--vtable nil
+  "The vtable object for this buffer.")
+
+(defvar-local compilation-history-view--pagination nil
+  "Pagination state for this buffer.")
+
+(defvar-local compilation-history-view--search-term nil
+  "Current FTS search term, or nil.")
+
+(defvar-local compilation-history-view--preview-mode nil
+  "Whether preview mode is active.")
+
+;;; Getter
+
+(defun compilation-history-view--get-value (object column-def)
+  "Extract value from OBJECT plist for COLUMN-DEF.
+COLUMN-DEF is a plist with at least :key. Dispatches on :key."
+  (let ((key (plist-get column-def :key)))
+    (pcase key
+      (:row-number
+       (+ (compilation-history-view--page-offset
+           compilation-history-view--pagination)
+          (plist-get object :row-index)
+          1))
+      (:commit
+       (let ((val (plist-get object :commit)))
+         (if (and val (> (length val) 7))
+             (substring val 0 7)
+           (or val ""))))
+      (:duration
+       (compilation-history-view--format-duration (plist-get object :duration)))
+      (_
+       (or (plist-get object key) "")))))
+
 ;;; Data Model
 
 (defun compilation-history-view--format-duration (seconds)
