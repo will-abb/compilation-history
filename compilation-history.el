@@ -214,6 +214,28 @@ that case and restores it to the value stored in the record."
         (with-no-warnings (setq-local compile-command record-command))))))
 ;;; Database Functions
 
+(defvar compilation-history--db nil
+  "Active database connection, or nil.
+Bound dynamically by `compilation-history--with-db' to avoid
+opening redundant connections within a call stack.")
+
+(defmacro compilation-history--with-db (db &rest body)
+  "Evaluate BODY with DB bound to an open SQLite connection.
+Reuses `compilation-history--db' if already open, otherwise opens
+a new connection and closes it when BODY completes.
+DB may be _ if the caller only needs the shared-connection benefit
+without referencing the handle directly."
+  (declare (indent 1) (debug (symbolp body)))
+  (let ((db-sym (if (eq db '_) (gensym "db") db)))
+    `(if compilation-history--db
+         (let ((,db-sym compilation-history--db))
+           ,@body)
+       (let ((,db-sym (sqlite-open compilation-history-db-file)))
+         (let ((compilation-history--db ,db-sym))
+           (unwind-protect
+               (progn ,@body)
+             (sqlite-close ,db-sym)))))))
+
 (defun compilation-history--extract-id-from-buffer-name (buffer-name)
   "Extract the timestamp ID from a compilation history buffer name."
   (when (string-match "\\*compilation-history-\\(.*?\\)==" buffer-name)
@@ -226,41 +248,33 @@ if they don't exist."
   (let ((db-dir (file-name-directory compilation-history-db-file)))
     (unless (file-directory-p db-dir)
       (make-directory db-dir t))
-    (let ((db (sqlite-open compilation-history-db-file)))
-      (unwind-protect
-          (progn
-            (sqlite-execute db compilation-history-db-schema)
-            (sqlite-execute db compilation-history-db-fts-schema)
-            (dolist (trigger compilation-history-db-fts-triggers)
-              (sqlite-execute db trigger)))
-        (sqlite-close db)))))
+    (compilation-history--with-db db
+      (sqlite-execute db compilation-history-db-schema)
+      (sqlite-execute db compilation-history-db-fts-schema)
+      (dolist (trigger compilation-history-db-fts-triggers)
+        (sqlite-execute db trigger)))))
 
 (defun compilation-history-rebuild-fts ()
   "Drop and recreate the FTS5 table and triggers.
 Use after upgrading the FTS schema (e.g., adding columns)."
   (interactive)
-  (let ((db (sqlite-open compilation-history-db-file)))
-    (unwind-protect
-        (progn
-          (sqlite-execute db "DROP TRIGGER IF EXISTS compilations_fts_insert")
-          (sqlite-execute db "DROP TRIGGER IF EXISTS compilations_fts_delete")
-          (sqlite-execute db "DROP TRIGGER IF EXISTS compilations_fts_update")
-          (sqlite-execute db "DROP TABLE IF EXISTS compilations_fts")
-          (sqlite-execute db compilation-history-db-fts-schema)
-          (dolist (trigger compilation-history-db-fts-triggers)
-            (sqlite-execute db trigger))
-          (sqlite-execute db "INSERT INTO compilations_fts(compilations_fts) VALUES('rebuild')"))
-      (sqlite-close db)))
+  (compilation-history--with-db db
+    (sqlite-execute db "DROP TRIGGER IF EXISTS compilations_fts_insert")
+    (sqlite-execute db "DROP TRIGGER IF EXISTS compilations_fts_delete")
+    (sqlite-execute db "DROP TRIGGER IF EXISTS compilations_fts_update")
+    (sqlite-execute db "DROP TABLE IF EXISTS compilations_fts")
+    (sqlite-execute db compilation-history-db-fts-schema)
+    (dolist (trigger compilation-history-db-fts-triggers)
+      (sqlite-execute db trigger))
+    (sqlite-execute db "INSERT INTO compilations_fts(compilations_fts) VALUES('rebuild')"))
   (message "FTS index rebuilt"))
 
 (defun compilation-history--execute-sql (sql &optional params)
   "Execute SQL statement with optional PARAMS on the compilation history database."
-  (let ((db (sqlite-open compilation-history-db-file)))
-    (unwind-protect
-        (if params
-            (sqlite-execute db sql params)
-          (sqlite-execute db sql))
-      (sqlite-close db))))
+  (compilation-history--with-db db
+    (if params
+        (sqlite-execute db sql params)
+      (sqlite-execute db sql))))
 
 (defun compilation-history--insert-compilation-record (record)
   "Insert RECORD into the database."
@@ -299,10 +313,8 @@ Use after upgrading the FTS schema (e.g., adding columns)."
 
 (defun compilation-history--count-records ()
   "Return the total number of compilation records."
-  (let ((db (sqlite-open compilation-history-db-file)))
-    (unwind-protect
-        (caar (sqlite-select db "SELECT COUNT(*) FROM compilations"))
-      (sqlite-close db))))
+  (compilation-history--with-db db
+    (caar (sqlite-select db "SELECT COUNT(*) FROM compilations"))))
 
 (defconst compilation-history--page-columns
   "id, buffer_name, compile_command, default_directory, start_time, end_time, exit_code, killed, git_branch, git_commit"
@@ -315,23 +327,19 @@ Use after upgrading the FTS schema (e.g., adding columns)."
 (defun compilation-history--query-page (limit offset)
   "Return LIMIT compilation records starting at OFFSET, newest first.
 Each row includes a computed duration_seconds column appended at the end."
-  (let ((db (sqlite-open compilation-history-db-file)))
-    (unwind-protect
-        (sqlite-select db
-                       (format "SELECT %s, %s FROM compilations ORDER BY start_time DESC LIMIT ? OFFSET ?"
-                               compilation-history--page-columns
-                               compilation-history--duration-expr)
-                       (vector limit offset))
-      (sqlite-close db))))
+  (compilation-history--with-db db
+    (sqlite-select db
+                   (format "SELECT %s, %s FROM compilations ORDER BY start_time DESC LIMIT ? OFFSET ?"
+                           compilation-history--page-columns
+                           compilation-history--duration-expr)
+                   (vector limit offset))))
 
 (defun compilation-history--get-output (id)
   "Return the output for compilation record with ID, or nil."
-  (let ((db (sqlite-open compilation-history-db-file)))
-    (unwind-protect
-        (caar (sqlite-select db
-                             "SELECT output FROM compilations WHERE id = ?"
-                             (vector id)))
-      (sqlite-close db))))
+  (compilation-history--with-db db
+    (caar (sqlite-select db
+                         "SELECT output FROM compilations WHERE id = ?"
+                         (vector id)))))
 
 (defconst compilation-history--fts-column-names
   '("compile_command" "default_directory" "git_branch" "output")
@@ -366,37 +374,33 @@ Handles plain terms (searches all FTS columns) and column:value syntax."
 (defun compilation-history--count-records-fts (search-term)
   "Return the number of compilation records matching SEARCH-TERM.
 Uses LIKE for short terms (< 3 chars), FTS otherwise."
-  (let ((db (sqlite-open compilation-history-db-file)))
-    (unwind-protect
-        (if (compilation-history--search-needs-like-p search-term)
-            (let ((parts (compilation-history--like-sql-parts search-term)))
-              (caar (sqlite-select db
-                                   (format "SELECT COUNT(*) FROM compilations WHERE %s" (car parts))
-                                   (cdr parts))))
+  (compilation-history--with-db db
+    (if (compilation-history--search-needs-like-p search-term)
+        (let ((parts (compilation-history--like-sql-parts search-term)))
           (caar (sqlite-select db
-                               "SELECT COUNT(*) FROM compilations WHERE rowid IN (SELECT rowid FROM compilations_fts WHERE compilations_fts MATCH ?)"
-                               (vector search-term))))
-      (sqlite-close db))))
+                               (format "SELECT COUNT(*) FROM compilations WHERE %s" (car parts))
+                               (cdr parts))))
+      (caar (sqlite-select db
+                           "SELECT COUNT(*) FROM compilations WHERE rowid IN (SELECT rowid FROM compilations_fts WHERE compilations_fts MATCH ?)"
+                           (vector search-term))))))
 
 (defun compilation-history--query-page-fts (limit offset search-term)
   "Return LIMIT matching records starting at OFFSET, newest first.
 Uses LIKE for short terms (< 3 chars), FTS otherwise."
-  (let ((db (sqlite-open compilation-history-db-file)))
-    (unwind-protect
-        (if (compilation-history--search-needs-like-p search-term)
-            (let ((parts (compilation-history--like-sql-parts search-term)))
-              (sqlite-select db
-                             (format "SELECT %s, %s FROM compilations WHERE %s ORDER BY start_time DESC LIMIT ? OFFSET ?"
-                                     compilation-history--page-columns
-                                     compilation-history--duration-expr
-                                     (car parts))
-                             (vconcat (cdr parts) (vector limit offset))))
+  (compilation-history--with-db db
+    (if (compilation-history--search-needs-like-p search-term)
+        (let ((parts (compilation-history--like-sql-parts search-term)))
           (sqlite-select db
-                         (format "SELECT %s, %s FROM compilations WHERE rowid IN (SELECT rowid FROM compilations_fts WHERE compilations_fts MATCH ?) ORDER BY start_time DESC LIMIT ? OFFSET ?"
+                         (format "SELECT %s, %s FROM compilations WHERE %s ORDER BY start_time DESC LIMIT ? OFFSET ?"
                                  compilation-history--page-columns
-                                 compilation-history--duration-expr)
-                         (vector search-term limit offset)))
-      (sqlite-close db))))
+                                 compilation-history--duration-expr
+                                 (car parts))
+                         (vconcat (cdr parts) (vector limit offset))))
+      (sqlite-select db
+                     (format "SELECT %s, %s FROM compilations WHERE rowid IN (SELECT rowid FROM compilations_fts WHERE compilations_fts MATCH ?) ORDER BY start_time DESC LIMIT ? OFFSET ?"
+                             compilation-history--page-columns
+                             compilation-history--duration-expr)
+                     (vector search-term limit offset)))))
 
 (defun compilation-history--finish-function (buffer status)
   "Finish function for compilation-finished-hook."

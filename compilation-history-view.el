@@ -238,21 +238,23 @@ INDEX is the 0-based row position within the current page."
          (page-size (compilation-history-view-pagination-page-size
                      compilation-history-view--pagination))
          (search compilation-history-view--search-term)
-         (total (if search
-                    (compilation-history--count-records-fts search)
-                  (compilation-history--count-records)))
          (pagination compilation-history-view--pagination))
-    (setf (compilation-history-view-pagination-total-records pagination) total)
-    ;; Clamp current page
-    (let ((max-page (compilation-history-view--total-pages pagination)))
-      (when (> (compilation-history-view-pagination-current-page pagination) max-page)
-        (setf (compilation-history-view-pagination-current-page pagination) max-page)))
-    ;; Fetch data
-    (let* ((offset (compilation-history-view--page-offset pagination))
-           (rows (if search
-                     (compilation-history--query-page-fts page-size offset search)
-                   (compilation-history--query-page page-size offset)))
-           (objects (cl-loop for row in rows
+    ;; Single DB connection for both count and page query
+    (compilation-history--with-db _
+      (let ((total (if search
+                       (compilation-history--count-records-fts search)
+                     (compilation-history--count-records))))
+        (setf (compilation-history-view-pagination-total-records pagination) total))
+      ;; Clamp current page
+      (let ((max-page (compilation-history-view--total-pages pagination)))
+        (when (> (compilation-history-view-pagination-current-page pagination) max-page)
+          (setf (compilation-history-view-pagination-current-page pagination) max-page)))
+      ;; Fetch data
+      (let* ((offset (compilation-history-view--page-offset pagination))
+             (rows (if search
+                       (compilation-history--query-page-fts page-size offset search)
+                     (compilation-history--query-page page-size offset)))
+             (objects (cl-loop for row in rows
                              for i from 0
                              collect (compilation-history-view--row-to-plist row i))))
       (erase-buffer)
@@ -277,7 +279,7 @@ INDEX is the 0-based row position within the current page."
       (compilation-history-view--insert-pagination)
       ;; Move point to first data row
       (goto-char (point-min))
-      (compilation-history-view--update-mode-line))))
+      (compilation-history-view--update-mode-line)))))
 
 (defun compilation-history-view--update-mode-line ()
   "Update mode-line to show pagination info."
