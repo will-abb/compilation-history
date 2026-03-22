@@ -245,5 +245,50 @@
             (compilation-history-view-open))
         (kill-buffer buf)))))
 
+(ert-deftest test-compilation-history-view-preview-activates ()
+  "SPC activates preview mode."
+  (compilation-history-test-with-db
+    (compilation-history--ensure-db)
+    (compilation-history--insert-compilation-record
+     (compilation-history-test--make-record
+      :record-id "20260321T120000000001"
+      :buffer-name "*compilation-history-20260321T120000000001==proj__make*"))
+    (compilation-history--update-compilation-record
+     "20260321T120000000001" 0 "output")
+    (let ((buf (compilation-history-view)))
+      (unwind-protect
+          (with-current-buffer buf
+            (goto-char (point-min))
+            (should-not compilation-history-view--preview-mode)
+            (when (vtable-current-object)
+              (compilation-history-view-preview)
+              (should compilation-history-view--preview-mode)))
+        (kill-buffer buf)
+        (when (get-buffer "*compilation-history-20260321T120000000001==proj__make*")
+          (kill-buffer "*compilation-history-20260321T120000000001==proj__make*"))))))
+
+(ert-deftest test-compilation-history-view-open-clears-preview ()
+  "RET clears preview mode."
+  (compilation-history-test-with-db
+    (compilation-history--ensure-db)
+    (compilation-history--insert-compilation-record
+     (compilation-history-test--make-record
+      :record-id "20260321T120000000001"
+      :buffer-name "*compilation-history-20260321T120000000001==proj__make*"))
+    (compilation-history--update-compilation-record
+     "20260321T120000000001" 0 "output")
+    (let ((buf (compilation-history-view)))
+      (unwind-protect
+          (with-current-buffer buf
+            (goto-char (point-min))
+            (when (vtable-current-object)
+              (setq compilation-history-view--preview-mode t)
+              (compilation-history-view-open)
+              (with-current-buffer buf
+                (should-not compilation-history-view--preview-mode))))
+        (kill-buffer buf)
+        (when (get-buffer "*compilation-history-20260321T120000000001==proj__make*")
+          (kill-buffer "*compilation-history-20260321T120000000001==proj__make*"))))))
+
 (provide 'test-compilation-history-view)
 ;;; test-compilation-history-view.el ends here

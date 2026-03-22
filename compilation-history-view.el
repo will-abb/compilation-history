@@ -338,14 +338,40 @@ Returns the displayed buffer."
         (when win (select-window win)))
     (message "No compilation record at point")))
 
-;;; Preview stubs (implemented in next task)
+;;; Preview
 
 (defun compilation-history-view-preview ()
-  "Preview record at point." (interactive) (message "Not yet implemented"))
+  "Preview the compilation record at point without switching focus."
+  (interactive)
+  (if-let* ((object (vtable-current-object)))
+      (let ((view-window (selected-window)))
+        (compilation-history-view--display-record object)
+        (setq compilation-history-view--preview-mode t)
+        (select-window view-window))
+    (message "No compilation record at point")))
+
 (defun compilation-history-view-preview-next ()
-  "Preview next record." (interactive) (message "Not yet implemented"))
+  "Move to next row and preview it if preview mode is active.
+No-op if preview mode is not active."
+  (interactive)
+  (when compilation-history-view--preview-mode
+    (forward-line 1)
+    (when-let* ((object (vtable-current-object)))
+      (let ((view-window (selected-window)))
+        (compilation-history-view--display-record object)
+        (select-window view-window)))))
+
 (defun compilation-history-view-preview-prev ()
-  "Preview previous record." (interactive) (message "Not yet implemented"))
+  "Move to previous row and preview it if preview mode is active.
+No-op if preview mode is not active."
+  (interactive)
+  (when compilation-history-view--preview-mode
+    (forward-line -1)
+    (when-let* ((object (vtable-current-object)))
+      (let ((view-window (selected-window)))
+        (compilation-history-view--display-record object)
+        (select-window view-window)))))
+
 (defun compilation-history-view-search ()
   "Search compilation history (not yet implemented)." (interactive) (message "Search not yet implemented"))
 
