@@ -151,5 +151,48 @@
               (should (string-match-p "make test" content))))
         (kill-buffer buf)))))
 
+(ert-deftest test-compilation-history-view-pagination-controls ()
+  "Pagination buttons are rendered."
+  (compilation-history-test-with-db
+    (compilation-history--ensure-db)
+    ;; Insert enough records for multiple pages
+    (dotimes (i 30)
+      (compilation-history--insert-compilation-record
+       (compilation-history-test--make-record
+        :record-id (format "20260321T120000%06d" i))))
+    (let ((buf (compilation-history-view)))
+      (unwind-protect
+          (with-current-buffer buf
+            (let ((content (buffer-string)))
+              (should (string-match-p "\\[First\\]" content))
+              (should (string-match-p "\\[Previous\\]" content))
+              (should (string-match-p "\\[Next\\]" content))
+              (should (string-match-p "\\[Last\\]" content))
+              (should (string-match-p "Page 1 of 2" content))
+              (should (string-match-p "(30 records)" content))))
+        (kill-buffer buf)))))
+
+(ert-deftest test-compilation-history-view-next-page-navigation ()
+  "Next page advances current-page and rerenders."
+  (compilation-history-test-with-db
+    (compilation-history--ensure-db)
+    (dotimes (i 30)
+      (compilation-history--insert-compilation-record
+       (compilation-history-test--make-record
+        :record-id (format "20260321T120000%06d" i))))
+    (let ((buf (compilation-history-view)))
+      (unwind-protect
+          (with-current-buffer buf
+            (should (= (compilation-history-view-pagination-current-page
+                        compilation-history-view--pagination) 1))
+            (compilation-history-view-next-page)
+            (should (= (compilation-history-view-pagination-current-page
+                        compilation-history-view--pagination) 2))
+            ;; Should not go past last page
+            (compilation-history-view-next-page)
+            (should (= (compilation-history-view-pagination-current-page
+                        compilation-history-view--pagination) 2)))
+        (kill-buffer buf)))))
+
 (provide 'test-compilation-history-view)
 ;;; test-compilation-history-view.el ends here

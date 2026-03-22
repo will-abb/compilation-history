@@ -214,8 +214,26 @@ INDEX is the 0-based row position within the current page."
   (let* ((pagination compilation-history-view--pagination)
          (current (compilation-history-view-pagination-current-page pagination))
          (total-pages (compilation-history-view--total-pages pagination))
-         (total-records (compilation-history-view-pagination-total-records pagination)))
-    (insert (format "Page %d of %d (%d records)" current total-pages total-records))))
+         (total-records (compilation-history-view-pagination-total-records pagination))
+         (on-first (= current 1))
+         (on-last (= current total-pages)))
+    (insert "\n")
+    (compilation-history-view--insert-button "First" #'compilation-history-view-first-page on-first)
+    (insert " ")
+    (compilation-history-view--insert-button "Previous" #'compilation-history-view-prev-page on-first)
+    (insert (format " Page %d of %d (%d records) " current total-pages total-records))
+    (compilation-history-view--insert-button "Next" #'compilation-history-view-next-page on-last)
+    (insert " ")
+    (compilation-history-view--insert-button "Last" #'compilation-history-view-last-page on-last)))
+
+(defun compilation-history-view--insert-button (label action &optional disabled)
+  "Insert a text button with LABEL that calls ACTION.
+When DISABLED is non-nil, button is dimmed and non-interactive."
+  (if disabled
+      (insert (propertize (format "[%s]" label) 'face 'shadow))
+    (insert-text-button (format "[%s]" label)
+                        'action (lambda (_) (funcall action))
+                        'follow-link t)))
 
 ;;;###autoload
 (defun compilation-history-view ()
@@ -231,18 +249,52 @@ INDEX is the 0-based row position within the current page."
     (switch-to-buffer buf)
     buf))
 
-;;; Navigation stubs (implemented in later tasks)
+;;; Navigation
 
 (defun compilation-history-view-next-page ()
-  "Go to next page." (interactive) (message "Not yet implemented"))
+  "Go to the next page."
+  (interactive)
+  (let* ((pagination compilation-history-view--pagination)
+         (max-page (compilation-history-view--total-pages pagination)))
+    (when (< (compilation-history-view-pagination-current-page pagination) max-page)
+      (cl-incf (compilation-history-view-pagination-current-page pagination))
+      (compilation-history-view--render))))
+
 (defun compilation-history-view-prev-page ()
-  "Go to previous page." (interactive) (message "Not yet implemented"))
+  "Go to the previous page."
+  (interactive)
+  (let ((pagination compilation-history-view--pagination))
+    (when (> (compilation-history-view-pagination-current-page pagination) 1)
+      (cl-decf (compilation-history-view-pagination-current-page pagination))
+      (compilation-history-view--render))))
+
 (defun compilation-history-view-first-page ()
-  "Go to first page." (interactive) (message "Not yet implemented"))
+  "Go to the first page."
+  (interactive)
+  (let ((pagination compilation-history-view--pagination))
+    (unless (= (compilation-history-view-pagination-current-page pagination) 1)
+      (setf (compilation-history-view-pagination-current-page pagination) 1)
+      (compilation-history-view--render))))
+
 (defun compilation-history-view-last-page ()
-  "Go to last page." (interactive) (message "Not yet implemented"))
+  "Go to the last page."
+  (interactive)
+  (let* ((pagination compilation-history-view--pagination)
+         (max-page (compilation-history-view--total-pages pagination)))
+    (unless (= (compilation-history-view-pagination-current-page pagination) max-page)
+      (setf (compilation-history-view-pagination-current-page pagination) max-page)
+      (compilation-history-view--render))))
+
 (defun compilation-history-view-refresh ()
-  "Refresh the view." (interactive) (message "Not yet implemented"))
+  "Refresh the view, recalculating page size from window height."
+  (interactive)
+  (setf (compilation-history-view-pagination-page-size
+         compilation-history-view--pagination)
+        (compilation-history-view--calculate-page-size))
+  (compilation-history-view--render))
+
+;;; Stubs (implemented in later tasks)
+
 (defun compilation-history-view-open ()
   "Open record at point." (interactive) (message "Not yet implemented"))
 (defun compilation-history-view-preview ()
