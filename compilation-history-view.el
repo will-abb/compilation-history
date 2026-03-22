@@ -2,6 +2,12 @@
 
 ;; Copyright (C) 2025 Jonathan Otsuka
 
+;; Author: Jonathan Otsuka
+;; Version: 0.1.0
+;; Package-Requires: ((emacs "29.1"))
+;; Keywords: tools
+;; URL: https://github.com/djgoku/compilation-history
+
 ;;; Commentary:
 ;; Paginated vtable-based UI for browsing compilation history records.
 
@@ -419,7 +425,7 @@ Reuses existing buffer if still alive, otherwise creates from database."
           buf))))
 
 (defun compilation-history-view--display-action ()
-  "Return a `display-buffer' action based on `compilation-history-view-split-direction'."
+  "Return a `display-buffer' action for the view split."
   `(display-buffer-in-direction (inhibit-same-window . t)
                                 (direction . ,(if (eq compilation-history-view-split-direction 'horizontal)
                                                   'below
@@ -502,8 +508,9 @@ Returns the displayed buffer."
 
 (defun compilation-history-view-search ()
   "Search compilation history using FTS.
-Supports substring matching and column-specific searches (e.g., compile_command:make).
-TAB completes column names. Empty input clears the search."
+Supports substring matching and column-specific searches
+\(e.g., compile_command:make).  TAB completes column names.
+Empty input clears the search."
   (interactive)
   (let ((term (minibuffer-with-setup-hook
                   (lambda ()

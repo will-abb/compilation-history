@@ -1,4 +1,4 @@
-;;; compilation-history.el --- Track compilation history in Emacs -*- lexical-binding: t; -*-
+;;; compilation-history.el --- Track compilation history -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2025
 
@@ -13,6 +13,9 @@
 ;; This package provides automatic tracking of compilation history in Emacs.
 ;; It captures compilation commands, timing, results, and metadata to help
 ;; analyze build patterns and debug compilation issues.
+;;
+;; Suggested keybinding:
+;;   (global-set-key (kbd "C-c c") compilation-history-map)
 
 ;;; Code:
 
@@ -24,14 +27,13 @@
 (require 'compile)
 (require 'subr-x)
 
-;;; Build Keybindings
+;;; Keymaps
 
 (defvar compilation-history-map (make-sparse-keymap)
   "Keymap for compilation history commands.")
 
 (define-key compilation-history-map (kbd "c") 'compile)
-
-(global-set-key (kbd "C-c b") compilation-history-map)
+(define-key compilation-history-map (kbd "v") 'compilation-history-view)
 
 ;;; Customization
 
@@ -50,6 +52,14 @@
   "The length to truncate the compile command to in the buffer name."
   :type 'integer
   :group 'compilation-history)
+
+;;; Buffer-local Variables
+
+(defvar compile-command)           ; built-in, silence byte-compiler
+(defvar compilation-directory)     ; built-in, silence byte-compiler
+
+(defvar-local compilation-history-record nil
+  "The compilation-history record for this buffer.")
 
 ;;; Database Schema
 
@@ -115,20 +125,20 @@ Indexes compile_command, default_directory, git_branch, and output.")
   (or start-time
       (format-time-string "%Y%m%dT%H%M%S%6N")))
 
-(defun compilation-history--get-path-string (default-directory)
-  "Return the path string for the buffer name."
-  (let* ((project-root (or (compilation-history--get-project-root default-directory)
-                           default-directory))
+(defun compilation-history--get-path-string (dir)
+  "Return the path string for the buffer name from DIR."
+  (let* ((project-root (or (compilation-history--get-project-root dir)
+                           dir))
          (project-name (file-name-nondirectory (directory-file-name project-root)))
-         (relative-path (file-relative-name default-directory project-root)))
+         (relative-path (file-relative-name dir project-root)))
     (let ((relative-path (string-remove-suffix "/" relative-path)))
       (if (string-equal "." relative-path)
           project-name
         (concat project-name "--" (string-replace "/" "--" relative-path))))))
 
-(defun compilation-history--sanitize-command (compile-command)
-  "Return a sanitized version of the compile command."
-  (let* ((cmd (replace-regexp-in-string "[^a-zA-Z0-9-]" "-" compile-command))
+(defun compilation-history--sanitize-command (command)
+  "Return a sanitized version of COMMAND for use in buffer names."
+  (let* ((cmd (replace-regexp-in-string "[^a-zA-Z0-9-]" "-" command))
          (cmd (replace-regexp-in-string "-+" "-" cmd)))
     (if (> (length cmd) compilation-history-command-truncate-length)
         (substring cmd 0 compilation-history-command-truncate-length)
@@ -156,32 +166,33 @@ Indexes compile_command, default_directory, git_branch, and output.")
               lines))))
 
 
-(defun compilation-history--get-system-info (default-directory)
-  "Return a plist of system information."
+(defun compilation-history--get-system-info (dir)
+  "Return a plist of system information for DIR."
   (let ((info (list :os system-type
                     :os-version (compilation-history--get-macos-version)
                     :emacs-version (emacs-version))))
-    (if-let* ((git-repo (vc-git-root default-directory)))
+    (if-let* ((git-repo (vc-git-root dir)))
         (append info
                 (list :git-repo git-repo
                       :git-branch (car (vc-git-branches))
-                      :git-commit (vc-git-working-revision default-directory)
-                      :git-commit-message (vc-git-get-change-comment default-directory "HEAD")
+                      :git-commit (vc-git-working-revision dir)
+                      :git-commit-message (vc-git-get-change-comment dir "HEAD")
                       :git-remote-urls (compilation-history--get-git-remote-urls)))
       info)))
 
-(defun compilation-history--generate-buffer-name (compile-command default-directory &optional start-time)
-  "Generate a unique buffer name for a compilation history buffer."
+(defun compilation-history--generate-buffer-name (command dir &optional start-time)
+  "Generate a unique buffer name for COMMAND in DIR."
   (let ((timestamp (compilation-history--get-timestamp start-time))
-        (path-string (compilation-history--get-path-string default-directory))
-        (command-sanitized (compilation-history--sanitize-command compile-command)))
+        (path-string (compilation-history--get-path-string dir))
+        (command-sanitized (compilation-history--sanitize-command command)))
     (format "*compilation-history-%s==%s__%s*"
             timestamp
             path-string
             command-sanitized)))
 
-(defun compilation-history--partial-buffer-name (mode-name)
-  "Generate a partially unique buffer name for a compilation."
+(defun compilation-history--partial-buffer-name (_mode)
+  "Generate a partially unique buffer name for a compilation.
+_MODE is required by `compilation-buffer-name-function' but unused."
   (compilation-history--maybe-fix-buffer-compile-command)
   (format "*compilation-history-%s*" (compilation-history--get-timestamp)))
 
@@ -196,7 +207,7 @@ doesn't match the compilation-history-record compile-command."
              compilation-history-record)
     (let ((record-command (compilation-history-compile-command compilation-history-record)))
       (unless (equal compile-command record-command)
-        (setq-local compile-command record-command)))))
+        (with-no-warnings (setq-local compile-command record-command))))))
 ;;; Database Functions
 
 (defun compilation-history--extract-id-from-buffer-name (buffer-name)
@@ -205,8 +216,9 @@ doesn't match the compilation-history-record compile-command."
     (match-string 1 buffer-name)))
 
 (defun compilation-history--ensure-db ()
-  "Ensure the compilation history database exists and is properly initialized.
-Creates the main table, FTS5 virtual table, and sync triggers if they don't exist."
+  "Ensure the compilation history database exists and is initialized.
+Creates the main table, FTS5 virtual table, and sync triggers
+if they don't exist."
   (let ((db-dir (file-name-directory compilation-history-db-file)))
     (unless (file-directory-p db-dir)
       (make-directory db-dir t))
@@ -220,8 +232,8 @@ Creates the main table, FTS5 virtual table, and sync triggers if they don't exis
         (sqlite-close db)))))
 
 (defun compilation-history-rebuild-fts ()
-  "Drop and recreate the FTS5 table, triggers, and rebuild the index.
-Use this after upgrading the FTS schema (e.g., adding columns or changing tokenizer)."
+  "Drop and recreate the FTS5 table and triggers.
+Use after upgrading the FTS schema (e.g., adding columns)."
   (interactive)
   (let ((db (sqlite-open compilation-history-db-file)))
     (unwind-protect
@@ -246,20 +258,20 @@ Use this after upgrading the FTS schema (e.g., adding columns or changing tokeni
           (sqlite-execute db sql))
       (sqlite-close db))))
 
-(defun compilation-history--insert-compilation-record (compilation-history-record)
-  "Insert a new compilation record into the database."
-  (let* ((id (compilation-history-record-id compilation-history-record))
-         (buffer-name (compilation-history-buffer-name compilation-history-record))
-         (compile-command (compilation-history-compile-command compilation-history-record))
-         (default-directory (compilation-history-default-directory compilation-history-record))
-         (system-info (compilation-history-system-info compilation-history-record))
+(defun compilation-history--insert-compilation-record (record)
+  "Insert RECORD into the database."
+  (let* ((id (compilation-history-record-id record))
+         (buffer-name (compilation-history-buffer-name record))
+         (command (compilation-history-compile-command record))
+         (dir (compilation-history-default-directory record))
+         (system-info (compilation-history-system-info record))
          (sql "INSERT INTO compilations (id, buffer_name, compile_command, default_directory, start_time, git_repo, git_branch, git_commit, git_commit_message, git_remote_urls, os, os_version, emacs_version) VALUES (?, ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)"))
     (compilation-history--execute-sql
      sql
      (vector id
              buffer-name
-             compile-command
-             default-directory
+             command
+             dir
              (plist-get system-info :git-repo)
              (plist-get system-info :git-branch)
              (plist-get system-info :git-commit)
@@ -419,8 +431,9 @@ progress we want to stop and save whatever output is present."
   "Set buffer-local compile-command to make standard recompile work."
   (unless (local-variable-p 'compile-command)
     (when (compilation-history-compile-command compilation-history-record)
-      (setq-local compile-command (compilation-history-compile-command compilation-history-record))
-      (setq-local compilation-directory default-directory))))
+      (with-no-warnings
+        (setq-local compile-command (compilation-history-compile-command compilation-history-record))
+        (setq-local compilation-directory default-directory)))))
 
 ;;; Public API
 
@@ -447,6 +460,7 @@ progress we want to stop and save whatever output is present."
         (compilation-history-set-recompile-command)
         (add-hook 'kill-buffer-hook #'compilation-history--kill-buffer-function nil t)))))
 
+;;;###autoload
 (define-minor-mode compilation-history-mode
   "Toggle compilation history tracking."
   :global t
