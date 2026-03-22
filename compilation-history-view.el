@@ -85,7 +85,14 @@ Each entry is a plist with:
   :align     - optional alignment (left or right)
 Users can reorder, remove, or modify entries. The getter dispatches on :key,
 so column order does not affect data access."
-  :type '(repeat plist)
+  :type '(repeat
+          (plist :key-type (choice (const :name)
+                                   (const :key)
+                                   (const :formatter)
+                                   (const :min-width)
+                                   (const :max-width)
+                                   (const :align))
+                 :value-type sexp))
   :group 'compilation-history)
 
 ;;; Buffer-local state
