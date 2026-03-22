@@ -207,7 +207,20 @@ INDEX is the 0-based row position within the current page."
       (insert "\n")
       (compilation-history-view--insert-pagination)
       ;; Move point to first data row
-      (goto-char (point-min)))))
+      (goto-char (point-min))
+      (compilation-history-view--update-mode-line))))
+
+(defun compilation-history-view--update-mode-line ()
+  "Update mode-line to show pagination info."
+  (let* ((pagination compilation-history-view--pagination)
+         (current (compilation-history-view-pagination-current-page pagination))
+         (total-pages (compilation-history-view--total-pages pagination))
+         (total-records (compilation-history-view-pagination-total-records pagination)))
+    (setq mode-line-format
+          (list " CompHist  "
+                (format "Page %d of %d (%d records)" current total-pages total-records)
+                "  "
+                'mode-line-misc-info))))
 
 (defun compilation-history-view--insert-pagination ()
   "Insert pagination controls below the vtable."
