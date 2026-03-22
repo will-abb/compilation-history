@@ -75,6 +75,8 @@
   );"
   "SQL schema for the compilations table.")
 
+(cl-defstruct compilation-history compile-command record-id system-info buffer-name default-directory exit-code message)
+
 ;;; Buffer Name
 
 (defun compilation-history--get-timestamp (&optional start-time)
@@ -157,11 +159,13 @@
 chance the compile-command will be changed for the existing compilation
 buffer. This function aligns the buffer local compile-command if it
 doesn't match the compilation-history-record compile-command."
-  (if (and (local-variable-p 'compile-command) (string-prefix-p "*compilation-history-" (buffer-name)))
-      (with-current-buffer (buffer-name)
-        (let ((inhibit-read-only t))
-          (unless (eq compile-command (compilation-history-compile-command compilation-history-record))
-            (setq-local compile-command (compilation-history-compile-command compilation-history-record)))))))
+  (when (and (local-variable-p 'compile-command)
+             (string-prefix-p "*compilation-history-" (buffer-name))
+             (boundp 'compilation-history-record)
+             compilation-history-record)
+    (let ((record-command (compilation-history-compile-command compilation-history-record)))
+      (unless (equal compile-command record-command)
+        (setq-local compile-command record-command)))))
 ;;; Database Functions
 
 (defun compilation-history--extract-id-from-buffer-name (buffer-name)
@@ -270,7 +274,7 @@ progress we want to stop and save whatever output is present."
 
 (defun compilation-history-set-recompile-command ()
   "Set buffer-local compile-command to make standard recompile work."
-  (unless (buffer-local-value 'compile-command (get-buffer (buffer-name)))
+  (unless (local-variable-p 'compile-command)
     (when (compilation-history-compile-command compilation-history-record)
       (setq-local compile-command (compilation-history-compile-command compilation-history-record))
       (setq-local compilation-directory default-directory))))
@@ -314,8 +318,6 @@ progress we want to stop and save whatever output is present."
         (add-hook 'kill-emacs-hook #'compilation-history--maybe-save-history))
     (advice-remove 'compilation-sentinel #'compilation-history-add-sentinel-metadata-advice)
     (remove-hook 'kill-emacs-hook #'compilation-history--maybe-save-history)))
-
-(cl-defstruct compilation-history compile-command record-id system-info buffer-name default-directory exit-code message)
 
 (provide 'compilation-history)
 
