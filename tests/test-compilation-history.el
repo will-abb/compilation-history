@@ -457,5 +457,20 @@ compile-command in the original buffer via setcar on compilation-arguments."
         (setq compile-command orig-compile-command)
         (setq compilation-history-db-file orig-db-file)))))
 
+(ert-deftest test-cancel-save-timer-cancels-active-timer ()
+  "Test that cancel-save-timer cancels and nils an active timer."
+  (with-temp-buffer
+    (setq-local compilation-history--save-timer
+                (run-with-timer 999 nil #'ignore))
+    (compilation-history--cancel-save-timer)
+    (should (null compilation-history--save-timer))))
+
+(ert-deftest test-cancel-save-timer-noop-when-nil ()
+  "Test that cancel-save-timer is a no-op when timer is nil."
+  (with-temp-buffer
+    (setq-local compilation-history--save-timer nil)
+    (compilation-history--cancel-save-timer)
+    (should (null compilation-history--save-timer))))
+
 (provide 'test-compilation-history)
 ;;; test-compilation-history.el ends here

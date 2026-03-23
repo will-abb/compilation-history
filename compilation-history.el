@@ -485,6 +485,12 @@ progress we want to stop and save whatever output is present."
           (setf (compilation-history-exit-code compilation-history-record) (process-exit-status proc))
           (compilation-history--finish-function buffer "interrupt"))))))
 
+(defun compilation-history--cancel-save-timer ()
+  "Cancel the periodic output save timer for the current buffer."
+  (when compilation-history--save-timer
+    (cancel-timer compilation-history--save-timer)
+    (setq-local compilation-history--save-timer nil)))
+
 ;;; Recompile Support
 
 (defun compilation-history-set-recompile-command ()
