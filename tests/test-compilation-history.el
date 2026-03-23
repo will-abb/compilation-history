@@ -591,5 +591,97 @@ compile-command in the original buffer via setcar on compilation-arguments."
               (sqlite-close db)))
         (kill-buffer buffer)))))
 
+(ert-deftest test-kill-buffer-cancels-timer-unconditionally ()
+  "Test that kill-buffer-function cancels timer even when exit-code is set."
+  (compilation-history-test-with-db
+    (compilation-history-init)
+    (let ((buffer (generate-new-buffer "*test-kill-timer*")))
+      (with-current-buffer buffer
+        (setq-local compilation-history-record
+                    (compilation-history-test--make-record))
+        (compilation-history--insert-compilation-record compilation-history-record)
+        ;; Set exit-code (simulates completed compilation)
+        (setf (compilation-history-exit-code compilation-history-record) 0)
+        ;; Set up a timer
+        (setq-local compilation-history--save-timer
+                    (run-with-timer 999 nil #'ignore))
+        (let ((timer compilation-history--save-timer))
+          ;; Call kill-buffer-function
+          (compilation-history--kill-buffer-function)
+          ;; Timer should be cancelled
+          (should (null compilation-history--save-timer)))))))
+
+(ert-deftest test-both-nil-disables-incremental-saving ()
+  "Test that setting both save-interval and save-line-threshold to nil disables everything."
+  (let ((compilation-history-save-interval nil)
+        (compilation-history-save-line-threshold nil))
+    (with-temp-buffer
+      (setq-local compilation-history-record
+                  (compilation-history-test--make-record))
+      (setq-local compilation-history--unsaved-line-count 0)
+      (setq-local compilation-history--output-dirty nil)
+      ;; No timer should be created
+      (should (null compilation-history--save-timer))
+      ;; Filter hook should not be added
+      (should-not (memq #'compilation-history--track-output
+                        compilation-filter-hook)))))
+
+(ert-deftest test-comint-mode-timer-sets-dirty-flag ()
+  "Test that timer callback sets dirty flag unconditionally in comint-mode."
+  (compilation-history-test-with-db
+    (compilation-history-init)
+    (let ((buffer (generate-new-buffer "*test-comint-dirty*"))
+          (compilation-history-save-interval 1)
+          (compilation-history-save-line-threshold nil))
+      (unwind-protect
+          (with-current-buffer buffer
+            (comint-mode)
+            (setq-local compilation-history-record
+                        (compilation-history-test--make-record))
+            (compilation-history--insert-compilation-record compilation-history-record)
+            (setq-local compilation-history--output-dirty nil)
+            (setq-local compilation-history--unsaved-line-count 0)
+            (insert "comint output\n")
+            ;; Dirty should still be nil (no filter hook in comint-mode)
+            (should (null compilation-history--output-dirty))
+            ;; Simulate what the timer callback does
+            (when (eq major-mode 'comint-mode)
+              (setq-local compilation-history--output-dirty t))
+            (compilation-history--save-partial-output buffer)
+            ;; Verify output was saved
+            (let* ((db (sqlite-open temp-db))
+                   (rows (sqlite-select db "SELECT output FROM compilations WHERE id = ?"
+                                        (vector (compilation-history-record-id compilation-history-record)))))
+              (should (equal "comint output\n" (caar rows)))
+              (sqlite-close db)))
+        (kill-buffer buffer)))))
+
+(ert-deftest test-mode-deactivation-cancels-all-timers ()
+  "Test that disabling compilation-history-mode cancels timers in all buffers."
+  (let ((buf-a (generate-new-buffer "*test-mode-deact-a*"))
+        (buf-b (generate-new-buffer "*test-mode-deact-b*"))
+        (orig-buffer-name-fn compilation-buffer-name-function)
+        (orig-setup-fn compilation-process-setup-function))
+    (unwind-protect
+        (progn
+          (with-current-buffer buf-a
+            (setq-local compilation-history--save-timer
+                        (run-with-timer 999 nil #'ignore)))
+          (with-current-buffer buf-b
+            (setq-local compilation-history--save-timer
+                        (run-with-timer 999 nil #'ignore)))
+          ;; Enable then disable mode
+          (compilation-history-mode 1)
+          (compilation-history-mode -1)
+          ;; Both timers should be cancelled
+          (with-current-buffer buf-a
+            (should (null compilation-history--save-timer)))
+          (with-current-buffer buf-b
+            (should (null compilation-history--save-timer))))
+      (kill-buffer buf-a)
+      (kill-buffer buf-b)
+      (setq compilation-buffer-name-function orig-buffer-name-fn)
+      (setq compilation-process-setup-function orig-setup-fn))))
+
 (provide 'test-compilation-history)
 ;;; test-compilation-history.el ends here

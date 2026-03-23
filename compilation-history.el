@@ -442,25 +442,23 @@ Uses LIKE for short terms (< 3 chars), FTS otherwise."
   "Finish function for compilation-finished-hook."
   (when-let* ((record-id (compilation-history-record-id (buffer-local-value 'compilation-history-record buffer))))
     (with-current-buffer buffer
+      ;; Cancel incremental save — final save captures everything
+      (compilation-history--cancel-save-timer)
+      (remove-hook 'compilation-filter-hook #'compilation-history--track-output t)
       (let* ((output (buffer-substring-no-properties (point-min) (point-max)))
              (killed (string-match-p "killed\|interrupt" status))
              (exit-code (compilation-history-exit-code (buffer-local-value 'compilation-history-record buffer))))
         (compilation-history--update-compilation-record record-id exit-code output killed))
       (setq-local compilation-arguments nil)
-      ;; would be nice if we could switch to compilation-mode if in
-      ;; comint-mode since if we try to use C-u g or g to re-compile
-      ;; it doesn't work with a comint-mode buffer.  so maybe switch
-      ;; to compilation-mode without running any hooks? if that is
-      ;; possible
-      (when (eq major-mode 'comint-mode)
-        (setq-local buffer-read-only t)))))
+      (if (eq major-mode 'comint-mode)
+          (setq-local buffer-read-only t)))))
 
 (defun compilation-history--kill-buffer-function ()
-  "Mark the compilation record as killed if it has no exit code yet.
-Does nothing if the record already has an exit code, preventing
-completed compilations from being incorrectly marked as killed."
-  (when (and compilation-history-record
-             (not (compilation-history-exit-code compilation-history-record)))
+  "Function to handle when compilation buffer is killed and exit-code is
+nil else we can mark a compilation-history record killed even though it
+exited successfully."
+  (compilation-history--cancel-save-timer)
+  (unless (compilation-history-exit-code compilation-history-record)
     (when-let* ((record-id (compilation-history-record-id compilation-history-record)))
       (let ((output (buffer-substring-no-properties (point-min) (point-max))))
         (compilation-history--update-compilation-record (compilation-history-record-id compilation-history-record) -1 output t)))))
@@ -568,7 +566,23 @@ Intended for use in `compilation-filter-hook'."
         (add-hook 'compilation-finish-functions #'compilation-history--finish-function nil t)
         (compilation-history--insert-compilation-record compilation-history-record)
         (compilation-history-set-recompile-command)
-        (add-hook 'kill-buffer-hook #'compilation-history--kill-buffer-function nil t)))))
+        (add-hook 'kill-buffer-hook #'compilation-history--kill-buffer-function nil t)
+        ;; Set up incremental output saving
+        (setq-local compilation-history--unsaved-line-count 0)
+        (setq-local compilation-history--output-dirty nil)
+        (when compilation-history-save-interval
+          (let ((buf (current-buffer)))
+            (setq-local compilation-history--save-timer
+                        (run-with-timer compilation-history-save-interval
+                                        compilation-history-save-interval
+                                        (lambda ()
+                                          (when (buffer-live-p buf)
+                                            (with-current-buffer buf
+                                              (when (eq major-mode 'comint-mode)
+                                                (setq-local compilation-history--output-dirty t))
+                                              (compilation-history--save-partial-output buf))))))))
+        (when compilation-history-save-line-threshold
+          (add-hook 'compilation-filter-hook #'compilation-history--track-output nil t))))))
 
 ;;;###autoload
 (define-minor-mode compilation-history-mode
@@ -586,7 +600,12 @@ Intended for use in `compilation-filter-hook'."
     (setq compilation-buffer-name-function nil)
     (setq compilation-process-setup-function nil)
     (advice-remove 'compilation-sentinel #'compilation-history--add-sentinel-metadata-advice)
-    (remove-hook 'kill-emacs-hook #'compilation-history--maybe-save-history)))
+    (remove-hook 'kill-emacs-hook #'compilation-history--maybe-save-history)
+    ;; Cancel save timers in all active compilation-history buffers
+    (dolist (buf (buffer-list))
+      (when (buffer-local-value 'compilation-history--save-timer buf)
+        (with-current-buffer buf
+          (compilation-history--cancel-save-timer))))))
 
 (provide 'compilation-history)
 
