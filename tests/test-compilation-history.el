@@ -472,5 +472,68 @@ compile-command in the original buffer via setcar on compilation-arguments."
     (compilation-history--cancel-save-timer)
     (should (null compilation-history--save-timer))))
 
+(ert-deftest test-save-partial-output-skips-when-not-dirty ()
+  "Test that save-partial-output is a no-op when output is not dirty."
+  (compilation-history-test-with-db
+    (compilation-history-init)
+    (let ((buffer (generate-new-buffer "*test-partial-save*")))
+      (unwind-protect
+          (with-current-buffer buffer
+            (setq-local compilation-history--output-dirty nil)
+            (setq-local compilation-history-record
+                        (compilation-history-test--make-record))
+            (compilation-history--insert-compilation-record compilation-history-record)
+            (insert "some output")
+            (compilation-history--save-partial-output buffer)
+            ;; Verify no output was saved (should still be nil in DB)
+            (let* ((db (sqlite-open temp-db))
+                   (rows (sqlite-select db "SELECT output FROM compilations WHERE id = ?"
+                                        (vector (compilation-history-record-id compilation-history-record)))))
+              (should (null (caar rows)))
+              (sqlite-close db)))
+        (kill-buffer buffer)))))
+
+(ert-deftest test-save-partial-output-writes-when-dirty ()
+  "Test that save-partial-output writes buffer content when dirty."
+  (compilation-history-test-with-db
+    (compilation-history-init)
+    (let ((buffer (generate-new-buffer "*test-partial-save*")))
+      (unwind-protect
+          (with-current-buffer buffer
+            (setq-local compilation-history-record
+                        (compilation-history-test--make-record))
+            (compilation-history--insert-compilation-record compilation-history-record)
+            (insert "partial output line 1\nline 2\n")
+            (setq-local compilation-history--output-dirty t)
+            (setq-local compilation-history--unsaved-line-count 2)
+            (compilation-history--save-partial-output buffer)
+            ;; Verify output was saved
+            (let* ((db (sqlite-open temp-db))
+                   (rows (sqlite-select db "SELECT output FROM compilations WHERE id = ?"
+                                        (vector (compilation-history-record-id compilation-history-record)))))
+              (should (equal "partial output line 1\nline 2\n" (caar rows)))
+              (sqlite-close db))
+            ;; Verify flags were reset
+            (should (null compilation-history--output-dirty))
+            (should (= 0 compilation-history--unsaved-line-count)))
+        (kill-buffer buffer)))))
+
+(ert-deftest test-save-partial-output-skips-dead-buffer ()
+  "Test that save-partial-output is a no-op for a dead buffer."
+  (let ((buffer (generate-new-buffer "*test-dead-buffer*")))
+    (kill-buffer buffer)
+    ;; Should not error
+    (compilation-history--save-partial-output buffer)))
+
+(ert-deftest test-save-partial-output-skips-nil-record ()
+  "Test that save-partial-output is a no-op when record is nil."
+  (let ((buffer (generate-new-buffer "*test-nil-record*")))
+    (unwind-protect
+        (with-current-buffer buffer
+          (setq-local compilation-history--output-dirty t)
+          ;; No compilation-history-record set
+          (compilation-history--save-partial-output buffer))
+      (kill-buffer buffer))))
+
 (provide 'test-compilation-history)
 ;;; test-compilation-history.el ends here

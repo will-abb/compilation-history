@@ -491,6 +491,39 @@ progress we want to stop and save whatever output is present."
     (cancel-timer compilation-history--save-timer)
     (setq-local compilation-history--save-timer nil)))
 
+(defun compilation-history--save-partial-output (buffer)
+  "Save current output from BUFFER to the database.
+No-op if BUFFER is dead, has no record, or output hasn't changed."
+  (when (buffer-live-p buffer)
+    (with-current-buffer buffer
+      (when (and (boundp 'compilation-history-record)
+                 compilation-history-record
+                 compilation-history--output-dirty)
+        (let ((output (buffer-substring-no-properties (point-min) (point-max)))
+              (record-id (compilation-history-record-id compilation-history-record)))
+          (compilation-history--execute-sql
+           "UPDATE compilations SET output = ? WHERE id = ?"
+           (vector output record-id)))
+        (setq-local compilation-history--unsaved-line-count 0)
+        (setq-local compilation-history--output-dirty nil)
+        (compilation-history--restart-save-timer)))))
+
+(defun compilation-history--restart-save-timer ()
+  "Restart the periodic save timer for the current buffer.
+Resets the countdown so line-triggered saves don't get a stale timer."
+  (compilation-history--cancel-save-timer)
+  (when compilation-history-save-interval
+    (let ((buf (current-buffer)))
+      (setq-local compilation-history--save-timer
+                  (run-with-timer compilation-history-save-interval
+                                  compilation-history-save-interval
+                                  (lambda ()
+                                    (when (buffer-live-p buf)
+                                      (with-current-buffer buf
+                                        (when (eq major-mode 'comint-mode)
+                                          (setq-local compilation-history--output-dirty t))
+                                        (compilation-history--save-partial-output buf)))))))))
+
 ;;; Recompile Support
 
 (defun compilation-history-set-recompile-command ()
