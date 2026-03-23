@@ -535,5 +535,61 @@ compile-command in the original buffer via setcar on compilation-arguments."
           (compilation-history--save-partial-output buffer))
       (kill-buffer buffer))))
 
+(ert-deftest test-track-output-counts-newlines ()
+  "Test that track-output correctly counts newlines in new output."
+  (with-temp-buffer
+    (setq-local compilation-history--unsaved-line-count 0)
+    (setq-local compilation-history--output-dirty nil)
+    (setq-local compilation-history-record
+                (compilation-history-test--make-record))
+    (insert "line 1\nline 2\nline 3\n")
+    (let ((compilation-filter-start (point-min)))
+      (compilation-history--track-output))
+    (should (= 3 compilation-history--unsaved-line-count))
+    (should compilation-history--output-dirty)))
+
+(ert-deftest test-track-output-accumulates-across-calls ()
+  "Test that line count accumulates across multiple filter calls."
+  (with-temp-buffer
+    (setq-local compilation-history--unsaved-line-count 0)
+    (setq-local compilation-history--output-dirty nil)
+    (setq-local compilation-history-record
+                (compilation-history-test--make-record))
+    (insert "line 1\n")
+    (let ((compilation-filter-start (point-min)))
+      (compilation-history--track-output))
+    (should (= 1 compilation-history--unsaved-line-count))
+    (let ((start (point)))
+      (insert "line 2\nline 3\n")
+      (let ((compilation-filter-start start))
+        (compilation-history--track-output)))
+    (should (= 3 compilation-history--unsaved-line-count))))
+
+(ert-deftest test-track-output-triggers-save-at-threshold ()
+  "Test that track-output triggers a save when line threshold is reached."
+  (compilation-history-test-with-db
+    (compilation-history-init)
+    (let ((buffer (generate-new-buffer "*test-threshold*"))
+          (compilation-history-save-line-threshold 3)
+          (compilation-history-save-interval nil))
+      (unwind-protect
+          (with-current-buffer buffer
+            (setq-local compilation-history--unsaved-line-count 0)
+            (setq-local compilation-history--output-dirty nil)
+            (setq-local compilation-history-record
+                        (compilation-history-test--make-record))
+            (compilation-history--insert-compilation-record compilation-history-record)
+            (insert "line 1\nline 2\nline 3\n")
+            (let ((compilation-filter-start (point-min)))
+              (compilation-history--track-output))
+            (should (null compilation-history--output-dirty))
+            (should (= 0 compilation-history--unsaved-line-count))
+            (let* ((db (sqlite-open temp-db))
+                   (rows (sqlite-select db "SELECT output FROM compilations WHERE id = ?"
+                                        (vector (compilation-history-record-id compilation-history-record)))))
+              (should (equal "line 1\nline 2\nline 3\n" (caar rows)))
+              (sqlite-close db)))
+        (kill-buffer buffer)))))
+
 (provide 'test-compilation-history)
 ;;; test-compilation-history.el ends here

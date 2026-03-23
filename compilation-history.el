@@ -524,6 +524,17 @@ Resets the countdown so line-triggered saves don't get a stale timer."
                                           (setq-local compilation-history--output-dirty t))
                                         (compilation-history--save-partial-output buf)))))))))
 
+(defun compilation-history--track-output ()
+  "Track new output lines and trigger save if threshold reached.
+Intended for use in `compilation-filter-hook'."
+  (let ((new-lines (count-lines compilation-filter-start (point))))
+    (cl-incf compilation-history--unsaved-line-count new-lines)
+    (setq-local compilation-history--output-dirty t)
+    (when (and compilation-history-save-line-threshold
+               (>= compilation-history--unsaved-line-count
+                   compilation-history-save-line-threshold))
+      (compilation-history--save-partial-output (current-buffer)))))
+
 ;;; Recompile Support
 
 (defun compilation-history-set-recompile-command ()
