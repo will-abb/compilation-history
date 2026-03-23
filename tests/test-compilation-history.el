@@ -683,5 +683,50 @@ compile-command in the original buffer via setcar on compilation-arguments."
       (setq compilation-buffer-name-function orig-buffer-name-fn)
       (setq compilation-process-setup-function orig-setup-fn))))
 
+(ert-deftest test-integration-incremental-save-during-compilation ()
+  "Integration test: compile with incremental saves, verify partial and final output in DB."
+  (compilation-history-test-with-db
+    (let ((orig-db-file compilation-history-db-file)
+          (orig-compile-command compile-command)
+          (compilation-history-save-line-threshold 2)
+          (compilation-history-save-interval nil)
+          (test-command "printf 'line1\\nline2\\nline3\\nline4\\n'"))
+      (unwind-protect
+          (progn
+            (compilation-history-init)
+            (compilation-history-mode 1)
+
+            (compile test-command)
+
+            ;; Wait for compilation to finish
+            (while compilation-in-progress
+              (sit-for 0.1))
+
+            ;; Find the compilation buffer
+            (let ((comp-buffer (seq-find (lambda (buf)
+                                           (string-prefix-p "*compilation-history-" (buffer-name buf)))
+                                         (buffer-list))))
+              (should comp-buffer)
+
+              (with-current-buffer comp-buffer
+                (let* ((record-id (compilation-history-record-id compilation-history-record))
+                       (db (sqlite-open temp-db))
+                       (rows (sqlite-select db "SELECT output FROM compilations WHERE id = ?"
+                                            (vector record-id))))
+                  ;; Final output should contain all lines
+                  (should (string-match-p "line1" (caar rows)))
+                  (should (string-match-p "line4" (caar rows)))
+                  (sqlite-close db)))
+
+              ;; Cleanup
+              (dolist (buf (buffer-list))
+                (when (string-prefix-p "*compilation-history-" (buffer-name buf))
+                  (kill-buffer buf)))))
+
+        ;; Cleanup
+        (compilation-history-mode -1)
+        (setq compile-command orig-compile-command)
+        (setq compilation-history-db-file orig-db-file)))))
+
 (provide 'test-compilation-history)
 ;;; test-compilation-history.el ends here
