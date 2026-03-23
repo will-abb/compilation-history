@@ -195,15 +195,17 @@ If START-TIME is non-nil, return it unchanged."
 
 (defun compilation-history--get-git-remote-urls ()
   "Return an alist of remote names to URLs for the current git repository."
-  (let ((output (shell-command-to-string "git config --get-regexp '^remote\\..*\\.url$'")))
-    (when-let* ((lines (split-string output "\n" t)))
-      (mapcar (lambda (line)
-                (let* ((parts (split-string line " "))
-                       (key-parts (split-string (car parts) "\\."))
-                       (remote-name (nth 1 key-parts))
-                       (url (cadr parts)))
-                  (cons remote-name url)))
-              lines))))
+  (with-temp-buffer
+    (when (zerop (call-process "git" nil t nil
+                               "config" "--get-regexp" "^remote\\..*\\.url$"))
+      (let ((lines (split-string (buffer-string) "\n" t)))
+        (mapcar (lambda (line)
+                  (let* ((parts (split-string line " "))
+                         (key-parts (split-string (car parts) "\\."))
+                         (remote-name (nth 1 key-parts))
+                         (url (cadr parts)))
+                    (cons remote-name url)))
+                lines)))))
 
 
 (defun compilation-history--get-system-info (dir)
@@ -260,17 +262,22 @@ opening redundant connections within a call stack.")
 Reuses `compilation-history--db' if already open, otherwise opens
 a new connection and closes it when BODY completes.
 DB may be _ if the caller only needs the shared-connection benefit
-without referencing the handle directly."
+without referencing the handle directly.
+Signals `sqlite-error' are caught and reported via `message'."
   (declare (indent 1) (debug (symbolp body)))
   (let ((db-sym (if (eq db '_) (gensym "db") db)))
-    `(if compilation-history--db
-         (let ((,db-sym compilation-history--db))
-           ,@body)
-       (let ((,db-sym (sqlite-open compilation-history-db-file)))
-         (let ((compilation-history--db ,db-sym))
-           (unwind-protect
-               (progn ,@body)
-             (sqlite-close ,db-sym)))))))
+    `(condition-case err
+         (if compilation-history--db
+             (let ((,db-sym compilation-history--db))
+               ,@body)
+           (let ((,db-sym (sqlite-open compilation-history-db-file)))
+             (let ((compilation-history--db ,db-sym))
+               (unwind-protect
+                   (progn ,@body)
+                 (sqlite-close ,db-sym)))))
+       (sqlite-error
+        (message "compilation-history: database error: %s" (error-message-string err))
+        nil))))
 
 (defun compilation-history--extract-id-from-buffer-name (buffer-name)
   "Extract the timestamp ID from a compilation history buffer name."
@@ -471,8 +478,7 @@ exited successfully."
             (compilation-history-message compilation-history-record) msg))))
 
 (defun compilation-history--maybe-save-history ()
-  "This is came about since if we close emacs and a compilation is still in
-progress we want to stop and save whatever output is present."
+  "Save output for in-progress compilations when Emacs is closing."
   (when compilation-in-progress
     (dolist (proc compilation-in-progress)
       (let* ((buffer (process-buffer proc)))
