@@ -441,14 +441,24 @@ Reuses existing buffer if still alive, otherwise creates from database."
          (existing (get-buffer buf-name)))
     (or existing
         (let ((output (compilation-history--get-output id))
-              (buf (get-buffer-create buf-name)))
+              (buf (get-buffer-create buf-name))
+              (dir (plist-get record :directory))
+              (cmd (plist-get record :command)))
           (with-current-buffer buf
             (let ((inhibit-read-only t))
               (erase-buffer)
               (when output (insert output)))
+            (setq default-directory dir)
             (compilation-mode)
-            (setq-local compile-command (plist-get record :command))
-            (setq-local compilation-directory (plist-get record :directory))
+            (setq-local compile-command cmd)
+            (setq-local compilation-directory dir)
+            (setq-local compilation-arguments (list cmd nil nil nil))
+            (setq-local compilation-history-record
+                        (make-compilation-history
+                         :record-id id
+                         :compile-command cmd
+                         :buffer-name buf-name
+                         :default-directory dir))
             (setq buffer-read-only t))
           buf))))
 

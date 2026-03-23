@@ -539,5 +539,49 @@
                         compilation-history-view--pagination) 2)))
         (kill-buffer buf)))))
 
+(ert-deftest test-reopened-buffer-has-correct-variables ()
+  "Opening a closed compilation from the view sets all required buffer-local variables."
+  (compilation-history-test-with-db
+    (compilation-history--ensure-db)
+    (let ((record (compilation-history-test--make-record
+                   :record-id "20260321T120000000001"
+                   :compile-command "make test"
+                   :default-directory "/tmp/my-project/")))
+      (compilation-history--insert-compilation-record record)
+      (compilation-history--update-compilation-record
+       "20260321T120000000001" 0 "All tests passed." nil))
+    ;; Build a plist like the view would pass to get-or-create
+    (let* ((view-record (list :id "20260321T120000000001"
+                              :buffer-name "*compilation-history-20260321T120000000001==test*"
+                              :command "make test"
+                              :directory "/tmp/my-project/"))
+           (buf (compilation-history-view--get-or-create-compilation-buffer view-record)))
+      (unwind-protect
+          (with-current-buffer buf
+            ;; compile-command should be set for recompile
+            (should (equal "make test" compile-command))
+            ;; compilation-directory should be set for recompile
+            (should (equal "/tmp/my-project/" compilation-directory))
+            ;; default-directory should match the original compilation
+            (should (equal "/tmp/my-project/" default-directory))
+            ;; compilation-history-record should be set
+            (should (boundp 'compilation-history-record))
+            (should compilation-history-record)
+            (should (equal "20260321T120000000001"
+                           (compilation-history-record-id compilation-history-record)))
+            (should (equal "make test"
+                           (compilation-history-compile-command compilation-history-record)))
+            ;; compilation-arguments comint flag must be nil so recompile
+            ;; uses compilation-mode, not comint-mode
+            (should (listp compilation-arguments))
+            (should-not (nth 1 compilation-arguments))
+            ;; buffer should be in compilation-mode and read-only
+            (should (eq major-mode 'compilation-mode))
+            (should buffer-read-only)
+            ;; output should be present
+            (should (string-match-p "All tests passed"
+                                    (buffer-substring-no-properties (point-min) (point-max)))))
+        (kill-buffer buf)))))
+
 (provide 'test-compilation-history-view)
 ;;; test-compilation-history-view.el ends here
