@@ -728,5 +728,46 @@ compile-command in the original buffer via setcar on compilation-arguments."
         (setq compile-command orig-compile-command)
         (setq compilation-history-db-file orig-db-file)))))
 
+(ert-deftest test-comint-buffer-read-only-after-finish ()
+  "Test that comint compilation buffers become read-only with q bound to quit-window after finish."
+  (compilation-history-test-with-db
+    (compilation-history-init)
+    (let ((buffer (generate-new-buffer "*test-comint-finish*")))
+      (unwind-protect
+          (with-current-buffer buffer
+            (comint-mode)
+            (setq-local compilation-history-record
+                        (compilation-history-test--make-record))
+            (compilation-history--insert-compilation-record compilation-history-record)
+            (setf (compilation-history-exit-code compilation-history-record) 0)
+            (insert "some comint output\n")
+            ;; Should not be read-only before finish
+            (should-not buffer-read-only)
+            ;; Simulate compilation finishing
+            (compilation-history--finish-function buffer "finished\n")
+            ;; Should be read-only after finish
+            (should buffer-read-only)
+            ;; q should be bound to quit-window
+            (should (eq (local-key-binding (kbd "q")) #'quit-window)))
+        (kill-buffer buffer)))))
+
+(ert-deftest test-non-comint-buffer-no-quit-binding-after-finish ()
+  "Test that non-comint compilation buffers don't get q bound to quit-window."
+  (compilation-history-test-with-db
+    (compilation-history-init)
+    (let ((buffer (generate-new-buffer "*test-non-comint-finish*")))
+      (unwind-protect
+          (with-current-buffer buffer
+            (setq-local compilation-history-record
+                        (compilation-history-test--make-record))
+            (compilation-history--insert-compilation-record compilation-history-record)
+            (setf (compilation-history-exit-code compilation-history-record) 0)
+            (insert "some output\n")
+            ;; Simulate compilation finishing
+            (compilation-history--finish-function buffer "finished\n")
+            ;; q should NOT be locally bound to quit-window
+            (should-not (eq (local-key-binding (kbd "q")) #'quit-window)))
+        (kill-buffer buffer)))))
+
 (provide 'test-compilation-history)
 ;;; test-compilation-history.el ends here

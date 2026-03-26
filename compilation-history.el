@@ -465,10 +465,12 @@ Falls back to LIKE if FTS MATCH returns nil (e.g. special characters in query)."
       (let* ((output (buffer-substring-no-properties (point-min) (point-max)))
              (killed (string-match-p "killed\|interrupt" status))
              (exit-code (compilation-history-exit-code (buffer-local-value 'compilation-history-record buffer))))
-        (compilation-history--update-compilation-record record-id exit-code output killed))
-      (setq-local compilation-arguments nil)
-      (if (eq major-mode 'comint-mode)
-          (setq-local buffer-read-only t)))))
+        (compilation-history--update-compilation-record record-id exit-code output killed)
+        ;; Make comint buffers read-only and quittable after process exits
+        (when (derived-mode-p 'comint-mode)
+          (setq buffer-read-only t)
+          (local-set-key (kbd "q") #'quit-window)))
+      (setq-local compilation-arguments nil))))
 
 (defun compilation-history--kill-buffer-function ()
   "Function to handle when compilation buffer is killed and exit-code is
