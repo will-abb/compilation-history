@@ -63,8 +63,8 @@
   "Test that recompile command is set correctly."
   (let ((test-record (make-compilation-history
                       :record-id "20250119T120000123456"
-                      :compile-command "make test"
-                      :default-directory "/tmp/")))
+                      :command "make test"
+                      :compile-directory "/tmp/")))
     (with-temp-buffer
       (setq-local compilation-history-record test-record)
       (setq-local default-directory "/tmp/")
@@ -78,8 +78,8 @@
   "Test that set-recompile-command does not overwrite an existing buffer-local compile-command."
   (let ((test-record (make-compilation-history
                       :record-id "20250119T120000123456"
-                      :compile-command "make test"
-                      :default-directory "/tmp/")))
+                      :command "make test"
+                      :compile-directory "/tmp/")))
     (with-temp-buffer
       (setq-local compilation-history-record test-record)
       (setq-local compile-command "existing command")
@@ -92,7 +92,7 @@
   (let ((buffer (generate-new-buffer "*compilation-history-20250119T120000123456*"))
         (test-record (make-compilation-history
                       :record-id "20250119T120000123456"
-                      :compile-command "make test")))
+                      :command "make test")))
     (unwind-protect
         (with-current-buffer buffer
           (setq-local compilation-history-record test-record)
@@ -109,7 +109,7 @@
   (let* ((buffer (generate-new-buffer "*test-compilation*"))
          (test-record (make-compilation-history
                        :record-id "20250119T120000123456"
-                       :compile-command "echo test")))
+                       :command "echo test")))
     (unwind-protect
         (with-current-buffer buffer
           (setq-local compilation-history-record test-record)
@@ -163,7 +163,7 @@
                 (should (local-variable-p 'compilation-history-record))
                 (let ((record compilation-history-record))
                   ;; Verify record fields
-                  (should (equal test-command (compilation-history-compile-command record)))
+                  (should (equal test-command (compilation-history-command record)))
                   (should (stringp (compilation-history-record-id record)))
                   (should (stringp (compilation-history-buffer-name record)))
 

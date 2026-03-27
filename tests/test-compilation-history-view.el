@@ -180,7 +180,7 @@
     (compilation-history--insert-compilation-record
      (compilation-history-test--make-record
       :record-id "20260321T120000000001"
-      :compile-command "make test"
+      :command "make test"
       :buffer-name "*compilation-history-20260321T120000000001==proj__make-test*"))
     (compilation-history--update-compilation-record
      "20260321T120000000001" 0 "test output")
@@ -257,7 +257,7 @@
       (compilation-history--insert-compilation-record
        (compilation-history-test--make-record
         :record-id "20260321T120000000001"
-        :compile-command "make test"
+        :command "make test"
         :buffer-name buf-name))
       (compilation-history--update-compilation-record
        "20260321T120000000001" 0 "build output here")
@@ -365,9 +365,9 @@
       (compilation-history--insert-compilation-record
        (compilation-history-test--make-record
         :record-id "20260321T120000000001"
-        :compile-command "make test"
+        :command "make test"
         :buffer-name buf-name
-        :default-directory "/tmp/project/"))
+        :compile-directory "/tmp/project/"))
       (compilation-history--update-compilation-record
        "20260321T120000000001" 0 "test output")
       (let ((view-buf (compilation-history-view)))
@@ -396,7 +396,7 @@
     (let* ((record (compilation-history-test--make-record
                     :record-id "20260321T120000000001"
                     :buffer-name "*compilation-history-20260321T120000000001==proj__make*"
-                    :compile-command "make test")))
+                    :command "make test")))
       (compilation-history--insert-compilation-record record)
       (compilation-history--update-compilation-record "20260321T120000000001" 0 "success output")
       ;; Open the buffer from the view
@@ -425,7 +425,7 @@
     (let* ((record (compilation-history-test--make-record
                     :record-id "20260321T120000000001"
                     :buffer-name "*compilation-history-20260321T120000000001==proj__make*"
-                    :compile-command "make test"))
+                    :command "make test"))
            (buf (get-buffer-create "*compilation-history-20260321T120000000001==proj__make*")))
       (compilation-history--insert-compilation-record record)
       ;; Simulate a running compilation buffer with the record but no exit code
@@ -533,11 +533,11 @@
     (compilation-history--insert-compilation-record
      (compilation-history-test--make-record
       :record-id "20260321T120000000001"
-      :compile-command "make test"))
+      :command "make test"))
     (compilation-history--insert-compilation-record
      (compilation-history-test--make-record
       :record-id "20260321T120000000002"
-      :compile-command "npm run build"))
+      :command "npm run build"))
     (let ((buf (compilation-history-view)))
       (unwind-protect
           (with-current-buffer buf
@@ -568,8 +568,8 @@
     (compilation-history--ensure-db)
     (let ((record (compilation-history-test--make-record
                    :record-id "20260321T120000000001"
-                   :compile-command "make test"
-                   :default-directory "/tmp/my-project/")))
+                   :command "make test"
+                   :compile-directory "/tmp/my-project/")))
       (compilation-history--insert-compilation-record record)
       (compilation-history--update-compilation-record
        "20260321T120000000001" 0 "All tests passed." nil))
@@ -593,7 +593,7 @@
             (should (equal "20260321T120000000001"
                            (compilation-history-record-id compilation-history-record)))
             (should (equal "make test"
-                           (compilation-history-compile-command compilation-history-record)))
+                           (compilation-history-command compilation-history-record)))
             ;; compilation-arguments comint flag must be nil so recompile
             ;; uses compilation-mode, not comint-mode
             (should (listp compilation-arguments))

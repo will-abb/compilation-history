@@ -462,9 +462,9 @@ Reuses existing buffer if still alive, otherwise creates from database."
             (setq-local compilation-history-record
                         (make-compilation-history
                          :record-id id
-                         :compile-command cmd
+                         :command cmd
                          :buffer-name buf-name
-                         :default-directory dir))
+                         :compile-directory dir))
             (setq buffer-read-only t))
           buf))))
 

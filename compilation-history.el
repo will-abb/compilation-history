@@ -155,7 +155,7 @@ Indexes compile_command, default_directory, git_branch, and output.")
     END;")
   "SQL triggers to keep FTS5 index in sync with compilations table.")
 
-(cl-defstruct compilation-history compile-command record-id system-info buffer-name default-directory exit-code message)
+(cl-defstruct compilation-history command record-id system-info buffer-name compile-directory exit-code message)
 
 ;;; Buffer Name
 
@@ -247,7 +247,7 @@ that case and restores it to the value stored in the record."
              (string-prefix-p "*compilation-history-" (buffer-name))
              (boundp 'compilation-history-record)
              compilation-history-record)
-    (let ((record-command (compilation-history-compile-command compilation-history-record)))
+    (let ((record-command (compilation-history-command compilation-history-record)))
       (unless (equal compile-command record-command)
         (with-no-warnings (setq-local compile-command record-command))))))
 ;;; Database Functions
@@ -318,8 +318,8 @@ Use after upgrading the FTS schema (e.g., adding columns)."
   "Insert RECORD into the database."
   (let* ((id (compilation-history-record-id record))
          (buffer-name (compilation-history-buffer-name record))
-         (command (compilation-history-compile-command record))
-         (dir (compilation-history-default-directory record))
+         (command (compilation-history-command record))
+         (dir (compilation-history-compile-directory record))
          (system-info (compilation-history-system-info record))
          (sql "INSERT INTO compilations (id, buffer_name, compile_command, default_directory, start_time, git_repo, git_branch, git_commit, git_commit_message, git_remote_urls, os, os_version, emacs_version) VALUES (?, ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)"))
     (compilation-history--execute-sql
@@ -556,9 +556,9 @@ Intended for use in `compilation-filter-hook'."
 (defun compilation-history-set-recompile-command ()
   "Set buffer-local compile-command to make standard recompile work."
   (unless (local-variable-p 'compile-command)
-    (when (compilation-history-compile-command compilation-history-record)
+    (when (compilation-history-command compilation-history-record)
       (with-no-warnings
-        (setq-local compile-command (compilation-history-compile-command compilation-history-record))
+        (setq-local compile-command (compilation-history-command compilation-history-record))
         (setq-local compilation-directory default-directory)))))
 
 ;;; Public API
@@ -580,7 +580,7 @@ Intended for use in `compilation-filter-hook'."
              (system-info (compilation-history--get-system-info default-directory)))
         (rename-buffer buffer-name)
         (compilation-history--ensure-db)
-        (setq-local compilation-history-record (make-compilation-history :record-id record-id :compile-command command :system-info system-info :buffer-name buffer-name :default-directory default-directory))
+        (setq-local compilation-history-record (make-compilation-history :record-id record-id :command command :system-info system-info :buffer-name buffer-name :compile-directory default-directory))
         (add-hook 'compilation-finish-functions #'compilation-history--finish-function nil t)
         (compilation-history--insert-compilation-record compilation-history-record)
         (compilation-history-set-recompile-command)

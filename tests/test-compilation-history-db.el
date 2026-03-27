@@ -93,15 +93,15 @@
     (compilation-history--insert-compilation-record
      (compilation-history-test--make-record
       :record-id "20260321T120000000001"
-      :compile-command "make test"))
+      :command "make test"))
     (compilation-history--insert-compilation-record
      (compilation-history-test--make-record
       :record-id "20260321T120000000002"
-      :compile-command "npm run build"))
+      :command "npm run build"))
     (compilation-history--insert-compilation-record
      (compilation-history-test--make-record
       :record-id "20260321T120000000003"
-      :compile-command "make clean"))
+      :command "make clean"))
     ;; FTS search for "make"
     (let ((db (sqlite-open compilation-history-db-file)))
       (unwind-protect
@@ -119,11 +119,11 @@
     (compilation-history--insert-compilation-record
      (compilation-history-test--make-record
       :record-id "20260321T120000000001"
-      :compile-command "make test"))
+      :command "make test"))
     (compilation-history--insert-compilation-record
      (compilation-history-test--make-record
       :record-id "20260321T120000000002"
-      :compile-command "npm run build"))
+      :command "npm run build"))
     ;; Substring search for "ake" should match "make test"
     (let ((db (sqlite-open compilation-history-db-file)))
       (unwind-protect
@@ -147,7 +147,7 @@
             (compilation-history--insert-compilation-record
              (compilation-history-test--make-record
               :record-id "20260321T120000000001"
-              :compile-command "cargo test"))
+              :command "cargo test"))
             ;; FTS should have it
             (let ((results (sqlite-select db
                              "SELECT * FROM compilations_fts WHERE compilations_fts MATCH ?"
@@ -162,13 +162,13 @@
     (compilation-history--insert-compilation-record
      (compilation-history-test--make-record
       :record-id "20260321T120000000001"
-      :compile-command "make test"))
+      :command "make test"))
     (compilation-history--update-compilation-record
      "20260321T120000000001" 1 "error: undefined reference to foo")
     (compilation-history--insert-compilation-record
      (compilation-history-test--make-record
       :record-id "20260321T120000000002"
-      :compile-command "make build"))
+      :command "make build"))
     (compilation-history--update-compilation-record
      "20260321T120000000002" 0 "Build successful")
     ;; Search output for "undefined"
@@ -188,13 +188,13 @@
     (compilation-history--insert-compilation-record
      (compilation-history-test--make-record
       :record-id "20260321T120000000001"
-      :compile-command "make test"
-      :default-directory "/tmp/project-a/"))
+      :command "make test"
+      :compile-directory "/tmp/project-a/"))
     (compilation-history--insert-compilation-record
      (compilation-history-test--make-record
       :record-id "20260321T120000000002"
-      :compile-command "npm run test"
-      :default-directory "/tmp/project-b/"))
+      :command "npm run test"
+      :compile-directory "/tmp/project-b/"))
     ;; Search only in compile_command for "make"
     (let ((db (sqlite-open compilation-history-db-file)))
       (unwind-protect
@@ -214,15 +214,15 @@
     (compilation-history--insert-compilation-record
      (compilation-history-test--make-record
       :record-id "20260321T120000000001"
-      :compile-command "make test"))
+      :command "make test"))
     (compilation-history--insert-compilation-record
      (compilation-history-test--make-record
       :record-id "20260321T120000000002"
-      :compile-command "npm run build"))
+      :command "npm run build"))
     (compilation-history--insert-compilation-record
      (compilation-history-test--make-record
       :record-id "20260321T120000000003"
-      :compile-command "make clean"))
+      :command "make clean"))
     (should (= (compilation-history--count-records-fts "make") 2))
     (should (= (compilation-history--count-records-fts "npm") 1))
     (should (= (compilation-history--count-records-fts "nonexistent") 0))))
@@ -234,15 +234,15 @@
     (compilation-history--insert-compilation-record
      (compilation-history-test--make-record
       :record-id "20260321T120000000001"
-      :compile-command "make test"))
+      :command "make test"))
     (compilation-history--insert-compilation-record
      (compilation-history-test--make-record
       :record-id "20260321T120000000002"
-      :compile-command "npm run build"))
+      :command "npm run build"))
     (compilation-history--insert-compilation-record
      (compilation-history-test--make-record
       :record-id "20260321T120000000003"
-      :compile-command "make clean"))
+      :command "make clean"))
     ;; Search for "make" with pagination
     (let ((page (compilation-history--query-page-fts 1 0 "make")))
       (should (= (length page) 1)))
@@ -258,11 +258,11 @@
     (compilation-history--insert-compilation-record
      (compilation-history-test--make-record
       :record-id "20260321T120000000001"
-      :compile-command "echo date pwd ls"))
+      :command "echo date pwd ls"))
     (compilation-history--insert-compilation-record
      (compilation-history-test--make-record
       :record-id "20260321T120000000002"
-      :compile-command "make test"))
+      :command "make test"))
     ;; "ls" is 2 chars — should use LIKE and find it
     (should (= (compilation-history--count-records-fts "ls") 1))
     ;; "pw" is 2 chars
@@ -278,11 +278,11 @@
     (compilation-history--insert-compilation-record
      (compilation-history-test--make-record
       :record-id "20260321T120000000001"
-      :compile-command "echo date pwd ls"))
+      :command "echo date pwd ls"))
     (compilation-history--insert-compilation-record
      (compilation-history-test--make-record
       :record-id "20260321T120000000002"
-      :compile-command "make test"))
+      :command "make test"))
     ;; Column-specific with short value
     (should (= (compilation-history--count-records-fts "compile_command:ls") 1))
     ;; Column-specific with 3+ chars still uses FTS
@@ -294,7 +294,7 @@
     (compilation-history--ensure-db)
     (let ((record (compilation-history-test--make-record
                    :record-id "20260321T120000000001"
-                   :compile-command "aws s3 ls s3://my-bucket")))
+                   :command "aws s3 ls s3://my-bucket")))
       (compilation-history--insert-compilation-record record)
       (compilation-history--update-compilation-record
        "20260321T120000000001" 0 "listing objects..." nil)
