@@ -291,22 +291,26 @@ INDEX is the 0-based row position within the current page."
                              for i from 0
                              collect (compilation-history-view--row-to-plist row i))))
       (erase-buffer)
-      (setq compilation-history-view--vtable
-            (make-vtable
-             :columns (compilation-history-view--make-vtable-columns)
-             :objects objects
-             :use-header-line t
-             :row-colors (compilation-history-view--row-colors)
-             :keymap (define-keymap
-                       "g"   #'compilation-history-view-refresh
-                       "q"   #'compilation-history-view-quit
-                       "Q"   #'compilation-history-view-kill-all
-                       "n"   #'compilation-history-view-preview-next
-                       "p"   #'compilation-history-view-preview-prev
-                       "M-n" #'compilation-history-view-preview-next
-                       "M-p" #'compilation-history-view-preview-prev
-                       "s"   #'compilation-history-view-search)
-             :insert t))
+      (if (null objects)
+          (progn
+            (setq compilation-history-view--vtable nil)
+            (insert (propertize "No compilations found." 'face 'shadow)))
+        (setq compilation-history-view--vtable
+              (make-vtable
+               :columns (compilation-history-view--make-vtable-columns)
+               :objects objects
+               :use-header-line t
+               :row-colors (compilation-history-view--row-colors)
+               :keymap (define-keymap
+                         "g"   #'compilation-history-view-refresh
+                         "q"   #'compilation-history-view-quit
+                         "Q"   #'compilation-history-view-kill-all
+                         "n"   #'compilation-history-view-preview-next
+                         "p"   #'compilation-history-view-preview-prev
+                         "M-n" #'compilation-history-view-preview-next
+                         "M-p" #'compilation-history-view-preview-prev
+                         "s"   #'compilation-history-view-search)
+               :insert t)))
       (goto-char (point-max))
       (insert "\n")
       (compilation-history-view--insert-pagination)
