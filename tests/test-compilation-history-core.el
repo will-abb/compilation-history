@@ -1,4 +1,4 @@
-;;; test-compilation-history.el --- Tests for compilation-history -*- lexical-binding: t; -*-
+;;; test-compilation-history-core.el --- Tests for compilation-history -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Jonathan Otsuka
 
@@ -769,5 +769,5 @@ compile-command in the original buffer via setcar on compilation-arguments."
             (should-not (eq (local-key-binding (kbd "q")) #'quit-window)))
         (kill-buffer buffer)))))
 
-(provide 'test-compilation-history)
-;;; test-compilation-history.el ends here
+(provide 'test-compilation-history-core)
+;;; test-compilation-history-core.el ends here
