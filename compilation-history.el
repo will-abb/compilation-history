@@ -592,17 +592,7 @@ Intended for use in `compilation-filter-hook'."
         ;; Set up incremental output saving
         (setq-local compilation-history--unsaved-line-count 0)
         (setq-local compilation-history--output-dirty nil)
-        (when compilation-history-save-interval
-          (let ((buf (current-buffer)))
-            (setq-local compilation-history--save-timer
-                        (run-with-timer compilation-history-save-interval
-                                        compilation-history-save-interval
-                                        (lambda ()
-                                          (when (buffer-live-p buf)
-                                            (with-current-buffer buf
-                                              (when (eq major-mode 'comint-mode)
-                                                (setq-local compilation-history--output-dirty t))
-                                              (compilation-history--save-partial-output buf))))))))
+        (compilation-history--restart-save-timer)
         (when compilation-history-save-line-threshold
           (add-hook 'compilation-filter-hook #'compilation-history--track-output nil t))))))
 
