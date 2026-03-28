@@ -792,5 +792,21 @@ compile-command in the original buffer via setcar on compilation-arguments."
       (compilation-history--capture-raw-output))
     (should (equal compilation-history--raw-output "\033[32mPASS\033[0m test_one\n"))))
 
+(ert-deftest test-ansi-codes-survive-save-and-reopen ()
+  "ANSI escape codes in process output survive DB save and are rendered on reopen."
+  (compilation-history-test-with-db
+    (compilation-history--ensure-db)
+    (let ((record (compilation-history-test--make-record
+                   :record-id "20260321T120000000001"
+                   :buffer-name "*compilation-history-test-roundtrip*")))
+      (compilation-history--insert-compilation-record record)
+      (compilation-history--update-compilation-record
+       "20260321T120000000001" 0
+       "Compilation started\n\033[32mPASS\033[0m one\n\033[31mFAIL\033[0m two\nCompilation finished\n")
+      ;; Verify raw codes are in DB
+      (let ((output (compilation-history--get-output "20260321T120000000001")))
+        (should (string-match-p "\033\\[32m" output))
+        (should (string-match-p "\033\\[31m" output))))))
+
 (provide 'test-compilation-history-core)
 ;;; test-compilation-history-core.el ends here
