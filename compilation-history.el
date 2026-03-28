@@ -556,6 +556,16 @@ Intended for use in `compilation-filter-hook'."
                    compilation-history-save-line-threshold))
       (compilation-history--save-partial-output (current-buffer)))))
 
+(defun compilation-history--setup-incremental-save ()
+  "Set up incremental output saving for the current compilation buffer.
+Starts a periodic save timer and optionally hooks into `compilation-filter-hook'
+for line-threshold saves."
+  (setq-local compilation-history--unsaved-line-count 0)
+  (setq-local compilation-history--output-dirty nil)
+  (compilation-history--restart-save-timer)
+  (when compilation-history-save-line-threshold
+    (add-hook 'compilation-filter-hook #'compilation-history--track-output nil t)))
+
 ;;; Recompile Support
 
 (defun compilation-history-set-recompile-command ()
@@ -590,12 +600,7 @@ Intended for use in `compilation-filter-hook'."
         (compilation-history--insert-compilation-record compilation-history-record)
         (compilation-history-set-recompile-command)
         (add-hook 'kill-buffer-hook #'compilation-history--kill-buffer-function nil t)
-        ;; Set up incremental output saving
-        (setq-local compilation-history--unsaved-line-count 0)
-        (setq-local compilation-history--output-dirty nil)
-        (compilation-history--restart-save-timer)
-        (when compilation-history-save-line-threshold
-          (add-hook 'compilation-filter-hook #'compilation-history--track-output nil t))))))
+        (compilation-history--setup-incremental-save)))))
 
 ;;;###autoload
 (define-minor-mode compilation-history-mode
