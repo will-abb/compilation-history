@@ -782,5 +782,15 @@ compile-command in the original buffer via setcar on compilation-arguments."
     ;; Valid UTC offsets range from -720 (UTC-12) to +840 (UTC+14)
     (should (<= -720 offset 840))))
 
+(ert-deftest test-capture-raw-output-accumulates ()
+  "Raw output capture hook accumulates text from compilation-filter-start to point."
+  (with-temp-buffer
+    (setq-local compilation-history--raw-output "")
+    (insert "header\n")
+    (let ((compilation-filter-start (point)))
+      (insert "\033[32mPASS\033[0m test_one\n")
+      (compilation-history--capture-raw-output))
+    (should (equal compilation-history--raw-output "\033[32mPASS\033[0m test_one\n"))))
+
 (provide 'test-compilation-history-core)
 ;;; test-compilation-history-core.el ends here

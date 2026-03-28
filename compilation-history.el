@@ -100,6 +100,9 @@ Set to nil to disable line-based saving."
 (defvar-local compilation-history--output-dirty nil
   "Non-nil when output has changed since last partial save.")
 
+(defvar-local compilation-history--raw-output ""
+  "Accumulated raw process output with ANSI escape codes intact.")
+
 ;;; Database Schema
 
 (defconst compilation-history-db-schema
@@ -574,6 +577,14 @@ Resets the countdown so line-triggered saves don't get a stale timer."
                                           (setq-local compilation-history--output-dirty t))
                                         (compilation-history--save-partial-output buf)))))))))
 
+(defun compilation-history--capture-raw-output ()
+  "Capture raw process output before ANSI filtering.
+Runs on `compilation-filter-hook' at depth -90, before
+`ansi-color-compilation-filter' strips escape codes."
+  (setq compilation-history--raw-output
+        (concat compilation-history--raw-output
+                (buffer-substring-no-properties compilation-filter-start (point)))))
+
 (defun compilation-history--track-output ()
   "Track new output lines and trigger save if threshold reached.
 Intended for use in `compilation-filter-hook'."
@@ -591,6 +602,8 @@ Starts a periodic save timer and optionally hooks into `compilation-filter-hook'
 for line-threshold saves."
   (setq-local compilation-history--unsaved-line-count 0)
   (setq-local compilation-history--output-dirty nil)
+  (setq-local compilation-history--raw-output "")
+  (add-hook 'compilation-filter-hook #'compilation-history--capture-raw-output -90 t)
   (compilation-history--restart-save-timer)
   (when compilation-history-save-line-threshold
     (add-hook 'compilation-filter-hook #'compilation-history--track-output nil t)))
