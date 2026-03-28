@@ -29,7 +29,13 @@ Variables available in BODY: temp-dir, temp-db."
   (declare (indent 0) (debug t))
   `(let* ((temp-dir (make-temp-file "test-compilation-history" t))
           (temp-db (expand-file-name "test.db" temp-dir))
-          (compilation-history-db-file temp-db))
+          (compilation-history-db-file temp-db)
+          (default-directory (file-name-as-directory temp-dir)))
+     ;; Create a git repo so vc-git can resolve a branch name
+     (call-process "git" nil nil nil "-C" temp-dir "init" "-b" "test-branch")
+     (call-process "git" nil nil nil "-C" temp-dir "config" "user.email" "test@test")
+     (call-process "git" nil nil nil "-C" temp-dir "config" "user.name" "Test")
+     (call-process "git" nil nil nil "-C" temp-dir "commit" "--allow-empty" "-m" "init")
      (unwind-protect
          (progn ,@body)
        (when (file-directory-p temp-dir)
