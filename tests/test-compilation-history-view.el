@@ -606,5 +606,33 @@
                                     (buffer-substring-no-properties (point-min) (point-max)))))
         (kill-buffer buf)))))
 
+(ert-deftest test-reopened-buffer-renders-ansi-colors ()
+  "Reopened compilation buffer renders ANSI escape codes as face properties."
+  (compilation-history-test-with-db
+    (compilation-history--ensure-db)
+    (let ((record (compilation-history-test--make-record
+                   :record-id "20260321T120000000001"
+                   :buffer-name "*compilation-history-test-ansi*")))
+      (compilation-history--insert-compilation-record record)
+      (compilation-history--update-compilation-record
+       "20260321T120000000001" 0
+       "\033[32mPASS\033[0m test_one\n")
+      (let* ((plist (list :id "20260321T120000000001"
+                          :buffer-name "*compilation-history-test-ansi*"
+                          :directory "/tmp/"
+                          :command "make test"
+                          :comint 0))
+             (buf (compilation-history-view--get-or-create-compilation-buffer plist)))
+        (unwind-protect
+            (with-current-buffer buf
+              ;; ESC codes should be gone (converted to properties)
+              (should-not (string-match-p "\033\\[" (buffer-string)))
+              ;; "PASS" should have a face via overlay (ansi-color applied)
+              (goto-char (point-min))
+              (when (search-forward "PASS" nil t)
+                (let ((overlays (overlays-at (match-beginning 0))))
+                  (should (cl-some (lambda (ov) (overlay-get ov 'face)) overlays)))))
+          (kill-buffer buf))))))
+
 (provide 'test-compilation-history-view)
 ;;; test-compilation-history-view.el ends here

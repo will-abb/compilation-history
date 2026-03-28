@@ -30,6 +30,7 @@
 (require 'cl-lib)
 (require 'vtable)
 (require 'color)
+(require 'ansi-color)
 (require 'compilation-history)
 
 ;;; Pagination
@@ -469,6 +470,9 @@ Reuses existing buffer if still alive, otherwise creates from database."
               (when output (insert output)))
             (setq default-directory dir)
             (compilation-mode)
+            (font-lock-mode -1)
+            (let ((inhibit-read-only t))
+              (ansi-color-apply-on-region (point-min) (point-max)))
             (with-no-warnings (setq-local compile-command cmd))
             (setq-local compilation-directory dir)
             (setq-local compilation-arguments (list cmd (when comint-flag t) nil nil))
