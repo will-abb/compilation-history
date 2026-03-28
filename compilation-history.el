@@ -158,6 +158,15 @@ Indexes compile_command, default_directory, git_branch, and output.")
 
 (cl-defstruct compilation-history command record-id system-info buffer-name compile-directory exit-code message comint)
 
+(defun compilation-history--utc-offset-minutes ()
+  "Return the current UTC offset in minutes.
+Parses `format-time-string' %z output (e.g., \"-0500\" → -300, \"+0530\" → 330)."
+  (let* ((tz (format-time-string "%z"))
+         (sign (if (string-prefix-p "-" tz) -1 1))
+         (hh (string-to-number (substring tz 1 3)))
+         (mm (string-to-number (substring tz 3 5))))
+    (* sign (+ (* hh 60) mm))))
+
 ;;; Buffer Name
 
 (defun compilation-history--get-timestamp (&optional start-time)

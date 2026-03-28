@@ -775,5 +775,12 @@ compile-command in the original buffer via setcar on compilation-arguments."
             (should (eq (key-binding (kbd "g")) #'recompile)))
         (kill-buffer buffer)))))
 
+(ert-deftest test-utc-offset-minutes ()
+  "Test that UTC offset helper returns an integer in valid range."
+  (let ((offset (compilation-history--utc-offset-minutes)))
+    (should (integerp offset))
+    ;; Valid UTC offsets range from -720 (UTC-12) to +840 (UTC+14)
+    (should (<= -720 offset 840))))
+
 (provide 'test-compilation-history-core)
 ;;; test-compilation-history-core.el ends here
