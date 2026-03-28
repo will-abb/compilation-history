@@ -83,7 +83,7 @@ Each entry is a plist with:
   :min-width - optional minimum column width
   :max-width - optional maximum column width
   :align     - optional alignment (left or right)
-Users can reorder, remove, or modify entries. The getter dispatches on :key,
+Users can reorder, remove, or modify entries.  The getter dispatches on :key,
 so column order does not affect data access."
   :type '(repeat
           (plist :key-type (choice (const :name)
@@ -530,7 +530,7 @@ Returns the displayed buffer."
     (message "No compilation record at point")))
 
 (defun compilation-history-view-preview-next ()
-  "Move to next row. If preview mode is active, also update the other window."
+  "Move to next row.  If preview mode is active, also update the other window."
   (interactive)
   (forward-line 1)
   (when compilation-history-view--preview-mode
@@ -540,7 +540,7 @@ Returns the displayed buffer."
         (select-window view-window)))))
 
 (defun compilation-history-view-preview-prev ()
-  "Move to previous row. If preview mode is active, also update the other window."
+  "Move to previous row.  If preview mode is active, also update the other window."
   (interactive)
   (forward-line -1)
   (when compilation-history-view--preview-mode
@@ -584,7 +584,7 @@ Empty input clears the search."
 (defun compilation-history-view-quit ()
   "Quit the compilation history view.
 Buries all compilation buffers opened from the view,
-then buries the view itself. Clears preview mode."
+then buries the view itself.  Clears preview mode."
   (interactive)
   (setq compilation-history-view--preview-mode nil)
   (setq compilation-history-view--preview-window nil)

@@ -22,16 +22,18 @@ for src in "${src_files[@]}"; do
   emacs --batch \
     -L "$PROJECT" \
     --eval "
-(require 'checkdoc)
-(with-current-buffer (find-file-noselect \"$src\")
-  (let ((checkdoc-diagnostic-buffer \"*checkdoc*\"))
-    (checkdoc-current-buffer t)
-    (with-current-buffer (get-buffer-create checkdoc-diagnostic-buffer)
-      (unless (= (point-min) (point-max))
-        (princ (buffer-string) #'external-debugging-output)
-        (kill-emacs 1)))
-    (princ \"OK: $(basename "$src")\n\" #'external-debugging-output)
-    (kill-emacs 0)))" 2>&1 || status=1
+(progn
+  (require 'checkdoc)
+  (with-current-buffer (find-file-noselect \"$src\")
+    (let ((checkdoc-diagnostic-buffer \"*checkdoc*\"))
+      (checkdoc-current-buffer t)
+      (with-current-buffer (get-buffer-create checkdoc-diagnostic-buffer)
+        (goto-char (point-min))
+        (when (re-search-forward \"^.+:[0-9]+:\" nil t)
+          (princ (buffer-string) #'external-debugging-output)
+          (kill-emacs 1)))
+      (princ \"OK: $(basename "$src")\n\" #'external-debugging-output)
+      (kill-emacs 0))))" 2>&1 || status=1
 done
 
 exit $status

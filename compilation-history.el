@@ -241,7 +241,8 @@ If START-TIME is non-nil, return it unchanged."
       info)))
 
 (defun compilation-history--generate-buffer-name (command dir &optional start-time)
-  "Generate a unique buffer name for COMMAND in DIR."
+  "Generate a unique buffer name for COMMAND in DIR.
+Optional START-TIME overrides the current time for the timestamp."
   (let ((timestamp (compilation-history--get-timestamp start-time))
         (path-string (compilation-history--get-path-string dir))
         (command-sanitized (compilation-history--sanitize-command command)))
@@ -293,7 +294,7 @@ without referencing the handle directly."
              (sqlite-close ,db-sym)))))))
 
 (defun compilation-history--extract-id-from-buffer-name (buffer-name)
-  "Extract the timestamp ID from a compilation history buffer name."
+  "Extract the timestamp ID from BUFFER-NAME."
   (when (string-match "\\*compilation-history-\\(.*?\\)==" buffer-name)
     (match-string 1 buffer-name)))
 
@@ -361,7 +362,8 @@ Use after upgrading the FTS schema (e.g., adding columns)."
              (compilation-history--utc-offset-minutes)))))
 
 (defun compilation-history--update-compilation-record (id exit-code output &optional killed)
-  "Update a compilation record with completion data."
+  "Update compilation record ID with EXIT-CODE and OUTPUT.
+Optional KILLED flag marks the compilation as killed."
   (let ((sql "UPDATE compilations SET
                 end_time = datetime('now'),
                 exit_code = ?,
@@ -453,7 +455,7 @@ Falls back to LIKE if FTS MATCH returns nil (e.g. special characters in query)."
           0))))
 
 (defun compilation-history--query-page-fts (limit offset search-term)
-  "Return LIMIT matching records starting at OFFSET, newest first.
+  "Return LIMIT matching records starting at OFFSET for SEARCH-TERM.
 Uses LIKE for short terms (< 3 chars), FTS otherwise.
 Falls back to LIKE if FTS MATCH returns nil (e.g. special characters in query)."
   (compilation-history--with-db db
@@ -489,7 +491,7 @@ Adds recompile and quit bindings and sets the buffer read-only."
     (setq buffer-read-only t)))
 
 (defun compilation-history--finish-function (buffer status)
-  "Finish function for compilation-finished-hook."
+  "Handle compilation finish for BUFFER with STATUS."
   (when-let* ((record-id (compilation-history-record-id (buffer-local-value 'compilation-history-record buffer))))
     (with-current-buffer buffer
       ;; Cancel incremental save — final save captures everything
@@ -502,9 +504,8 @@ Adds recompile and quit bindings and sets the buffer read-only."
         (compilation-history-buffer-mode 1)))))
 
 (defun compilation-history--kill-buffer-function ()
-  "Function to handle when compilation buffer is killed and exit-code is
-nil else we can mark a compilation-history record killed even though it
-exited successfully."
+  "Handle compilation buffer kill when exit-code is nil.
+Avoids marking a record as killed when it already exited successfully."
   (compilation-history--cancel-save-timer)
   (when (and (boundp 'compilation-history-record) compilation-history-record)
     (unless (compilation-history-exit-code compilation-history-record)
@@ -513,7 +514,7 @@ exited successfully."
           (compilation-history--update-compilation-record record-id -1 output t))))))
 
 (defun compilation-history--add-sentinel-metadata-advice (proc msg)
-  "Simple debug advice for compilation-sentinel focusing on record-id and process."
+  "Debug advice for `compilation-sentinel' logging PROC and MSG metadata."
   (let* ((buffer (process-buffer proc)))
     (with-current-buffer buffer
       (setf (compilation-history-exit-code compilation-history-record) (process-exit-status proc)
