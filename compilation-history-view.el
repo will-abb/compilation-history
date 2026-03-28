@@ -303,6 +303,11 @@ INDEX is the 0-based row position within the current page."
                :objects objects
                :use-header-line t
                :row-colors (compilation-history-view--row-colors)
+               ;; vtable rows carry a text-property keymap that shadows the
+               ;; mode-map.  We must re-bind interactive keys here so they
+               ;; work when point is on a table row.  The mode-map bindings
+               ;; (compilation-history-view-mode-map) still cover areas
+               ;; outside the table (header, footer, empty space).
                :keymap (define-keymap
                          "g"   #'compilation-history-view-refresh
                          "q"   #'compilation-history-view-quit
