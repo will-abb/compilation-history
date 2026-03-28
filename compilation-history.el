@@ -508,6 +508,9 @@ exited successfully."
         (message "Killing compilation in buffer %s" (buffer-name buffer))
         (with-current-buffer buffer
           (call-interactively 'kill-compilation)
+          ;; Brief pause to let the process die; output may be incomplete
+          ;; if it takes longer than 250ms, but there's no reliable way to
+          ;; block during kill-emacs-hook.
           (sit-for .25)
           (setf (compilation-history-exit-code compilation-history-record) (process-exit-status proc))
           (compilation-history--finish-function buffer "interrupt"))))))
