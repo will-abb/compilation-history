@@ -120,8 +120,11 @@ Set to nil to disable line-based saving."
     os TEXT,
     os_version TEXT,
     emacs_version TEXT,
-    output BLOB,
-    comint INTEGER DEFAULT 0
+    comint INTEGER DEFAULT 0,
+    utc_offset INTEGER,
+    -- output BLOB must be the last column for performance (large inline
+    -- data is cheaper to skip when it trails all fixed-width columns).
+    output BLOB
   );"
   "SQL schema for the compilations table.")
 
@@ -333,7 +336,7 @@ Use after upgrading the FTS schema (e.g., adding columns)."
          (dir (compilation-history-compile-directory record))
          (system-info (compilation-history-system-info record))
          (comint-flag (if (compilation-history-comint record) 1 0))
-         (sql "INSERT INTO compilations (id, buffer_name, compile_command, default_directory, start_time, git_repo, git_branch, git_commit, git_commit_message, git_remote_urls, os, os_version, emacs_version, comint) VALUES (?, ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?)"))
+         (sql "INSERT INTO compilations (id, buffer_name, compile_command, default_directory, start_time, git_repo, git_branch, git_commit, git_commit_message, git_remote_urls, os, os_version, emacs_version, comint, utc_offset) VALUES (?, ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"))
     (compilation-history--execute-sql
      sql
      (vector id
@@ -348,7 +351,8 @@ Use after upgrading the FTS schema (e.g., adding columns)."
              (symbol-name (plist-get system-info :os))
              (plist-get system-info :os-version)
              (plist-get system-info :emacs-version)
-             comint-flag))))
+             comint-flag
+             (compilation-history--utc-offset-minutes)))))
 
 (defun compilation-history--update-compilation-record (id exit-code output &optional killed)
   "Update a compilation record with completion data."

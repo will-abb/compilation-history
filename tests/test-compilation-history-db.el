@@ -305,5 +305,21 @@
       (let ((rows (compilation-history--query-page-fts 10 0 "s3://")))
         (should (= (length rows) 1))))))
 
+(ert-deftest test-compilation-history--insert-stores-utc-offset ()
+  "Insert stores UTC offset in the database."
+  (compilation-history-test-with-db
+    (compilation-history--ensure-db)
+    (let ((record (compilation-history-test--make-record
+                   :record-id "20260321T120000000001")))
+      (compilation-history--insert-compilation-record record)
+      (let* ((db (sqlite-open compilation-history-db-file))
+             (row (car (sqlite-select db "SELECT utc_offset FROM compilations WHERE id = ?"
+                                      (vector "20260321T120000000001")))))
+        (sqlite-close db)
+        ;; utc_offset should be a non-nil integer
+        (should (integerp (car row)))
+        ;; Should be in valid range
+        (should (<= -720 (car row) 840))))))
+
 (provide 'test-compilation-history-db)
 ;;; test-compilation-history-db.el ends here
