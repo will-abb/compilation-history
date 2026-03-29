@@ -4,7 +4,6 @@
 
 ;; Author: Jonathan Carroll Otsuka <pitas.axioms0c@icloud.com>
 ;; Version: 0.2.1
-;; Package-Requires: ((emacs "29.1"))
 ;; Keywords: processes, tools
 ;; URL: https://github.com/djgoku/compilation-history
 
@@ -402,7 +401,7 @@ When DISABLED is non-nil, button is dimmed and non-interactive."
   (compilation-history--ensure-db)
   (let ((buf (get-buffer-create "*Compilation History*")))
     (pop-to-buffer buf '((display-buffer-reuse-window display-buffer-same-window)))
-    (unless (eq major-mode 'compilation-history-view-mode)
+    (unless (derived-mode-p 'compilation-history-view-mode)
       (compilation-history-view-mode)
       (setq compilation-history-view--pagination
             (make-compilation-history-view-pagination

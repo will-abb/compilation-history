@@ -45,11 +45,10 @@
 (autoload 'compilation-history-view "compilation-history-view"
   "Open the compilation history view buffer." t)
 
-(defvar compilation-history-map (make-sparse-keymap)
-  "Keymap for compilation history commands.")
-
-(define-key compilation-history-map (kbd "c") 'compile)
-(define-key compilation-history-map (kbd "v") 'compilation-history-view)
+(defvar-keymap compilation-history-map
+  :doc "Keymap for compilation history commands."
+  "c" #'compile
+  "v" #'compilation-history-view)
 
 ;;; Customization
 
@@ -547,7 +546,7 @@ Avoids marking a record as killed when it already exited successfully."
       (let* ((buffer (process-buffer proc)))
         (message "Killing compilation in buffer %s" (buffer-name buffer))
         (with-current-buffer buffer
-          (call-interactively 'kill-compilation)
+          (call-interactively #'kill-compilation)
           ;; Brief pause to let the process die; output may be incomplete
           ;; if it takes longer than 250ms, but there's no reliable way to
           ;; block during kill-emacs-hook.
@@ -593,7 +592,7 @@ Resets the countdown so line-triggered saves don't get a stale timer."
                                   (lambda ()
                                     (when (buffer-live-p buf)
                                       (with-current-buffer buf
-                                        (when (eq major-mode 'comint-mode)
+                                        (when (derived-mode-p 'comint-mode)
                                           (setq-local compilation-history--output-dirty t))
                                         (compilation-history--save-partial-output buf)))))))))
 
