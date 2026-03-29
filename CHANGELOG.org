@@ -1,0 +1,106 @@
+#+TITLE: Changelog
+
+* [0.2.0] - 2026-03-29
+** Breaking
+- add release automation script with ZeroVer support
+** Added
+- render ANSI colors when reopening compilation buffers from view
+- save reconstructed output with raw ANSI escape codes
+- add raw output capture hook at depth -90 for ANSI preservation
+- add start_time DESC index for page query performance
+- display start_time in local timezone using UTC offset
+- store UTC offset in compilations table
+- add UTC offset helper for local timezone support
+- add post-install verification to elpaca bootstrap
+- add Elpaca bootstrap script for CI dependencies
+- add comint recompile support with g binding
+- make comint compilation buffers read-only and quittable after process exits
+- add command formatter to collapse whitespace for view display
+- integrate incremental output saving into compilation lifecycle
+- add compilation-history--track-output for line-based save trigger
+- add compilation-history--save-partial-output and timer restart
+- add compilation-history--cancel-save-timer helper
+- add defcustoms and buffer-local vars for incremental output saving
+- human-readable duration formatting
+- add mise tasks for MELPA readiness checks
+- add key legend with separators to footer
+- n/p always move cursor, preview only when active
+- center pagination controls and fix page size calculation
+- add column formatters and vtable property passthrough
+- add FTS5 search with trigram tokenizer and LIKE fallback
+- add configurable split direction for opening history items
+- persistent preview mode, q/Q quit commands, vtable keymap overrides
+- add theme-aware alternating row colors
+- add preview mode with SPC and n/p navigation
+- add RET to open compilation buffer
+- add mode-line with page info
+- add pagination controls and page navigation
+- add compilation-history-view mode with vtable rendering
+- add column configuration defcustom and key-based getter
+- add row-to-plist conversion and status derivation
+- add compilation-history-view skeleton with pagination struct
+- add query-page, count-records, and get-output database functions
+- use compilation-history struct when opening a history buffer
+- add a compilation-history struct that will be used to hold state
+- re-work recompile works
+- re-work for Add functions to generate a compilation buffer name
+- Add functions to generate a compilation buffer name
+** Fixed
+- resolve CI depends_on naming and skip CI on release commits
+- checkdoc imperative verb in insert-button docstring
+- repair checkdoc task and resolve all checkdoc warnings
+- create isolated git repo in test macro for CI compatibility
+- use silex/emacs CI variant that includes git
+- remove unnecessary setup_git_script from CI
+- update test file header and provide to match renamed filename
+- guard --kill-buffer-function against missing compilation-history-record
+- bypass package.el tar extraction bug for CI deps install
+- handle empty vtable on Emacs 29
+- guard vc-git-get-change-comment with fboundp for Emacs 29 compat
+- suppress byte-compile warning for built-in compile-command variable
+- set all required variables when reopening closed compilations from view
+- FTS search falls back to LIKE for special characters (e.g. s3://)
+- address code review feedback
+- replace defvaralias with direct reference to core FTS constant
+- use structured defcustom type for view column configuration
+- use mode-name instead of replacing mode-line-format
+- address code review findings for MELPA readiness
+- resolve byte-compile and package-lint warnings for MELPA compliance
+- use dynamic page size on initial load
+- enable truncate-lines and preserve buffer state on reopen
+- set compile-command and compilation-directory when opening from view
+- use display-line-numbers-mode -1 to override global mode
+- reuse preview window and prevent display-buffer from replacing view
+- repair remaining test failures and mode deactivation
+- prevent compile-command from being overwritten in compilation-history buffers
+- replace newlines and multiple spaces in `compile-command`
+- Moved to adding compilation-finish-functions to buffer local
+- remove old code that reverted to original settings before compilation-history
+- Only set recompile command if buffer local has a compile-command
+- Do not update compilation record if exit code is non-nil
+- Add a function to align buffer-local compile-command
+** Changed
+- switch deps and load paths from MELPA tarball to Elpaca
+- simplify CI to single `mise run check` task
+- introduce compilation-history-buffer-mode minor mode
+- extract --setup-incremental-save from --setup-function
+- deduplicate timer-setup by calling --restart-save-timer
+- rename struct slots to avoid shadowing Emacs builtins
+- add with-db macro for SQLite connection reuse
+** Other
+- add GPL-3.0 LICENSE file for MELPA compliance
+- add recommended use-package setup and improve README accuracy
+- add integration test for ANSI code round-trip through database
+- output emacs-build-description
+- explain sit-for limitation in kill-emacs-hook
+- explain why vtable keymap duplicates mode-map bindings
+- rewrite README with customization docs, search guide, and screenshot
+- rename test-compilation-history.el to test-compilation-history-core.el
+- add .melpa-deps to .gitignore
+- remove stale root-level test file
+- add integration test for incremental output saving
+- remove trivial CAPF test that only checks a constant
+- add GPL headers, full author metadata, and processes keyword
+- remove unused compilation-history-view-v2.el
+- add .worktrees to .gitignore
+- Switch to compilation-history struct in tests.
