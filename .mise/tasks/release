@@ -120,6 +120,14 @@ strip_prefix() {
   echo "$1" | sed -E 's/^[a-z]+(\([^)]*\))?!?:[[:space:]]*//'
 }
 
+# Convert org-mode changelog section to markdown for GitHub releases
+org_to_markdown() {
+  echo "$1" | sed -E '
+    s/^\* \[/## [/
+    s/^\*\* /### /
+  '
+}
+
 generate_changelog_section() {
   local new_version="$1" since="$2"
   local log_range
@@ -239,8 +247,11 @@ if "$DRY_RUN"; then
   echo "Would release: $current_version → $new_version"
   echo "Bump type: $bump_type"
   echo ""
-  echo "Changelog preview:"
+  echo "Changelog preview (org):"
   echo "$changelog_section"
+  echo ""
+  echo "GitHub release preview (markdown):"
+  echo "$(org_to_markdown "$changelog_section")"
   echo ""
   echo "Files to update:"
   for el_file in "${EL_FILES[@]}"; do
@@ -278,7 +289,7 @@ git push
 git push --tags
 echo "Pushed to remote"
 
-echo "$changelog_section" | gh release create "v${new_version}" \
+org_to_markdown "$changelog_section" | gh release create "v${new_version}" \
   --title "v${new_version}" \
   --notes-file -
 
