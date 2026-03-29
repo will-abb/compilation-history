@@ -634,5 +634,60 @@
                   (should (cl-some (lambda (ov) (overlay-get ov 'face)) overlays)))))
           (kill-buffer buf))))))
 
+;;; Directory link tests
+
+(ert-deftest test-compilation-history-view--format-directory-nil ()
+  "Directory formatter handle nil gracefully."
+  (should (equal (compilation-history-view--format-directory nil) "")))
+
+(ert-deftest test-compilation-history-view--format-directory-existing-is-button ()
+  "Directory formatter return a clickable button for existing directories."
+  (let* ((test-dir (make-temp-file "test-dir" t))
+         (result (compilation-history-view--format-directory test-dir)))
+    (unwind-protect
+        (progn
+          (should (stringp result))
+          (should (get-text-property 0 'button result)))
+      (delete-directory test-dir t))))
+
+(ert-deftest test-compilation-history-view--format-directory-missing-not-button ()
+  "Directory formatter return plain text when directory does not exist."
+  (let ((result (compilation-history-view--format-directory "/tmp/no-such-dir-12345/")))
+    (should (stringp result))
+    (should-not (get-text-property 0 'button result))))
+
+(ert-deftest test-compilation-history-view-open-follows-directory-button ()
+  "RET on directory column in rendered view open dired."
+  (compilation-history-test-with-db
+    (compilation-history--ensure-db)
+    (let* ((test-dir (make-temp-file "test-proj" t))
+           (dired-called nil))
+      (compilation-history--insert-compilation-record
+       (compilation-history-test--make-record
+        :record-id "20260321T120000000001"
+        :command "make test"
+        :compile-directory test-dir
+        :buffer-name "*compilation-history-20260321T120000000001==proj__make-test*"))
+      (compilation-history--update-compilation-record
+       "20260321T120000000001" 0 "output")
+      (let ((buf (compilation-history-view)))
+        (unwind-protect
+            (with-current-buffer buf
+              (goto-char (point-min))
+              ;; Find the button in the rendered vtable
+              (let ((found nil))
+                (while (and (not found) (not (eobp)))
+                  (if (get-text-property (point) 'button)
+                      (setq found t)
+                    (forward-char 1)))
+                (should found)
+                ;; RET on the button should call dired
+                (cl-letf (((symbol-function 'dired)
+                           (lambda (dir) (setq dired-called dir))))
+                  (compilation-history-view-open)
+                  (should (equal dired-called test-dir)))))
+          (kill-buffer buf)
+          (delete-directory test-dir t))))))
+
 (provide 'test-compilation-history-view)
 ;;; test-compilation-history-view.el ends here

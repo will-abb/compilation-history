@@ -125,9 +125,12 @@ so column order does not affect data access."
     (or value "")))
 
 (defun compilation-history-view--format-directory (value)
-  "Abbreviate directory VALUE, replacing home directory with ~/."
+  "Abbreviate directory VALUE and make it a clickable link if it exists."
   (if value
-      (abbreviate-file-name value)
+      (let ((display (abbreviate-file-name value)))
+        (if (file-directory-p value)
+            (buttonize display #'dired value)
+          display))
     ""))
 
 (defun compilation-history-view--format-command (command)
@@ -317,7 +320,9 @@ INDEX is the 0-based row position within the current page."
                          "p"   #'compilation-history-view-preview-prev
                          "M-n" #'compilation-history-view-preview-next
                          "M-p" #'compilation-history-view-preview-prev
-                         "s"   #'compilation-history-view-search)
+                         "s"   #'compilation-history-view-search
+                         "<mouse-1>" #'compilation-history-view-open
+                         "<mouse-2>" #'compilation-history-view-open)
                :insert t)))
       (goto-char (point-max))
       (insert "\n")
@@ -510,14 +515,19 @@ Returns the displayed buffer."
       (cl-pushnew buf compilation-history-view--opened-buffers))
     buf))
 
-(defun compilation-history-view-open ()
-  "Open the compilation record at point in other window and switch to it."
-  (interactive)
-  (if-let* ((object (vtable-current-object)))
-      (let* ((buf (compilation-history-view--display-record object))
-             (win (get-buffer-window buf)))
-        (when win (select-window win)))
-    (message "No compilation record at point")))
+(defun compilation-history-view-open (&optional event)
+  "Follow button at point, or open the compilation record.
+When called from a mouse EVENT, move point to the click position first."
+  (interactive (list last-input-event))
+  (when (mouse-event-p event)
+    (mouse-set-point event))
+  (if (get-text-property (point) 'button)
+      (push-button)
+    (if-let* ((object (vtable-current-object)))
+        (let* ((buf (compilation-history-view--display-record object))
+               (win (get-buffer-window buf)))
+          (when win (select-window win)))
+      (message "No compilation record at point"))))
 
 ;;; Preview
 
