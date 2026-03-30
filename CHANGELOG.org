@@ -1,5 +1,12 @@
 #+TITLE: Changelog
 
+* [0.2.2] - 2026-03-30
+** Fixed
+- remove with-no-warnings and unnecessary defvar declarations
+- address melpazoid findings for MELPA compliance
+** Changed
+- replace Elpaca lint pipeline with self-contained melpazoid
+
 * [0.2.1] - 2026-03-29
 ** Added
 - make directory column a clickable link to dired
