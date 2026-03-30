@@ -1,5 +1,9 @@
 #+TITLE: Changelog
 
+* [0.2.3] - 2026-03-30
+** Added
+- convert GitHub release notes to markdown format
+
 * [0.2.2] - 2026-03-30
 ** Fixed
 - remove with-no-warnings and unnecessary defvar declarations
