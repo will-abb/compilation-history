@@ -84,9 +84,6 @@ Set to nil to disable line-based saving."
 
 ;;; Buffer-local Variables
 
-(defvar compile-command)           ; built-in, silence byte-compiler
-(defvar compilation-directory)     ; built-in, silence byte-compiler
-
 (defvar-local compilation-history-record nil
   "The compilation-history record for this buffer.")
 
@@ -241,7 +238,7 @@ If START-TIME is non-nil, return it unchanged."
                       :git-branch (car (vc-git-branches))
                       :git-commit (vc-git-working-revision dir)
                       :git-commit-message (when (fboundp 'vc-git-get-change-comment)
-                                           (vc-git-get-change-comment dir "HEAD"))
+                                            (vc-git-get-change-comment dir "HEAD"))
                       :git-remote-urls (compilation-history--get-git-remote-urls)))
       info)))
 
@@ -273,7 +270,7 @@ that case and restores it to the value stored in the record."
              compilation-history-record)
     (let ((record-command (compilation-history-command compilation-history-record)))
       (unless (equal compile-command record-command)
-        (with-no-warnings (setq-local compile-command record-command))))))
+        (setq-local compile-command record-command)))))
 ;;; Database Functions
 
 (defvar compilation-history--db nil
@@ -634,9 +631,8 @@ for line-threshold saves."
   "Set buffer-local compile-command to make standard recompile work."
   (unless (local-variable-p 'compile-command)
     (when (compilation-history-command compilation-history-record)
-      (with-no-warnings
-        (setq-local compile-command (compilation-history-command compilation-history-record))
-        (setq-local compilation-directory default-directory)))))
+      (setq-local compile-command (compilation-history-command compilation-history-record))
+      (setq-local compilation-directory default-directory))))
 
 ;;; Public API
 
