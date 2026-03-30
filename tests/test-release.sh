@@ -242,6 +242,18 @@ test_dry_run_no_side_effects() {
   ! git tag -l | grep -q 'v0.1.1' || { echo "Tag created during dry-run"; return 1; }
 }
 
+test_dry_run_shows_markdown_preview() {
+  local tmpdir="$1"
+  cd "$tmpdir"
+  git commit -q --allow-empty -m "feat: add widget"
+  git commit -q --allow-empty -m "fix: handle nil"
+  local output
+  output=$(MISE_PROJECT_DIR="$tmpdir" "$RELEASE_SCRIPT" --dry-run --no-branch-check 2>&1)
+  echo "$output" | grep -q '^## \[0.1.1\]' || { echo "Missing markdown version heading"; return 1; }
+  echo "$output" | grep -q '^### Added' || { echo "Missing markdown Added heading"; return 1; }
+  echo "$output" | grep -q '^### Fixed' || { echo "Missing markdown Fixed heading"; return 1; }
+}
+
 test_end_to_end_local() {
   local tmpdir="$1"
   cd "$tmpdir"
@@ -307,6 +319,7 @@ run_test "wrong branch with --no-branch-check proceeds" test_wrong_branch_with_f
 run_test "tag collision aborts" test_tag_collision_aborts
 run_test "missing gh binary aborts" test_missing_gh_aborts
 run_test "dry-run has no side effects" test_dry_run_no_side_effects
+run_test "dry-run shows markdown preview" test_dry_run_shows_markdown_preview
 run_test "end-to-end local release" test_end_to_end_local
 run_test "multi-release prepends correctly" test_multi_release
 
