@@ -43,7 +43,7 @@
 (defun compilation-history-view--total-pages (pagination)
   "Return total number of pages for PAGINATION."
   (max 1 (ceiling (compilation-history-view-pagination-total-records pagination)
-                   (compilation-history-view-pagination-page-size pagination))))
+                  (compilation-history-view-pagination-page-size pagination))))
 
 (defun compilation-history-view--page-offset (pagination)
   "Return the SQL OFFSET for the current page of PAGINATION."
@@ -62,7 +62,23 @@ Subtracts space for header-line and pagination controls."
 `horizontal' splits above/below (horizontal divider),
 `vertical' splits side-by-side (vertical divider)."
   :type '(choice (const :tag "Horizontal (above/below)" horizontal)
-                 (const :tag "Vertical (side-by-side)" vertical))
+          (const :tag "Vertical (side-by-side)" vertical))
+  :group 'compilation-history)
+
+(defcustom compilation-history-view-keybind-hints
+  '(("RET" . "open")
+    ("SPC" . "preview")
+    ("n/p" . "nav")
+    ("s" . "search")
+    ("C-v/M-v" . "page")
+    :separator
+    ("g" . "refresh")
+    ("q" . "quit")
+    ("Q" . "kill-all"))
+  "Keybind hints displayed in the pagination footer.
+Each entry is a cons cell (KEY . DESCRIPTION).
+Use the symbol `:separator' to split hints into left and right groups."
+  :type '(repeat (choice (cons string string) (const :separator)))
   :group 'compilation-history)
 
 (defcustom compilation-history-view-columns
@@ -282,9 +298,9 @@ INDEX is the 0-based row position within the current page."
     ;; Single DB connection for both count and page query
     (compilation-history--with-db _
       (let ((total (or (if search
-                          (compilation-history--count-records-fts search)
-                        (compilation-history--count-records))
-                      0)))
+                           (compilation-history--count-records-fts search)
+                         (compilation-history--count-records))
+                       0)))
         (setf (compilation-history-view-pagination-total-records pagination) total))
       ;; Clamp current page
       (let ((max-page (compilation-history-view--total-pages pagination)))
@@ -296,42 +312,34 @@ INDEX is the 0-based row position within the current page."
                        (compilation-history--query-page-fts page-size offset search)
                      (compilation-history--query-page page-size offset)))
              (objects (cl-loop for row in rows
-                             for i from 0
-                             collect (compilation-history-view--row-to-plist row i))))
-      (erase-buffer)
-      (if (null objects)
-          (progn
-            (setq compilation-history-view--vtable nil)
-            (insert (propertize "No compilations found." 'face 'shadow)))
-        (setq compilation-history-view--vtable
-              (make-vtable
-               :columns (compilation-history-view--make-vtable-columns)
-               :objects objects
-               :use-header-line t
-               :row-colors (compilation-history-view--row-colors)
-               ;; vtable rows carry a text-property keymap that shadows the
-               ;; mode-map.  We must re-bind interactive keys here so they
-               ;; work when point is on a table row.  The mode-map bindings
-               ;; (compilation-history-view-mode-map) still cover areas
-               ;; outside the table (header, footer, empty space).
-               :keymap (define-keymap
-                         "g"   #'compilation-history-view-refresh
-                         "q"   #'compilation-history-view-quit
-                         "Q"   #'compilation-history-view-kill-all
-                         "n"   #'compilation-history-view-preview-next
-                         "p"   #'compilation-history-view-preview-prev
-                         "M-n" #'compilation-history-view-preview-next
-                         "M-p" #'compilation-history-view-preview-prev
-                         "s"   #'compilation-history-view-search
-                         "<mouse-1>" #'compilation-history-view-open
-                         "<mouse-2>" #'compilation-history-view-open)
-               :insert t)))
-      (goto-char (point-max))
-      (insert "\n")
-      (compilation-history-view--insert-pagination)
-      ;; Move point to first data row
-      (goto-char (point-min))
-      (compilation-history-view--update-mode-line)))))
+                               for i from 0
+                               collect (compilation-history-view--row-to-plist row i))))
+        (erase-buffer)
+        (if (null objects)
+            (progn
+              (setq compilation-history-view--vtable nil)
+              (insert (propertize "No compilations found." 'face 'shadow)))
+          (setq compilation-history-view--vtable
+                (make-vtable
+                 :columns (compilation-history-view--make-vtable-columns)
+                 :objects objects
+                 :use-header-line t
+                 :row-colors (compilation-history-view--row-colors)
+                 ;; vtable rows carry a text-property keymap that shadows the
+                 ;; mode-map.  We must re-bind interactive keys here so they
+                 ;; work when point is on a table row.  The mode-map bindings
+                 ;; (compilation-history-view-mode-map) still cover areas
+                 ;; outside the table (header, footer, empty space).
+                 :keymap (define-keymap
+                           "<mouse-1>" #'compilation-history-view-open
+                           "<mouse-2>" #'compilation-history-view-open)
+                 :insert t)))
+        (goto-char (point-max))
+        (insert "\n")
+        (compilation-history-view--insert-pagination)
+        ;; Move point to first data row
+        (goto-char (point-min))
+        (compilation-history-view--update-mode-line)))))
 
 (defun compilation-history-view--update-mode-line ()
   "Update mode-line to show pagination info via `mode-name'.
@@ -358,20 +366,26 @@ mode-line segments (input method, narrowing, global modes, etc.)."
          (on-first (= current 1))
          (on-last (= current total-pages)))
     (insert "\n")
-    (let* ((left-keys "RET:open │ SPC:preview │ n/p:nav │ s:search │ C-v/M-v:page")
-           (right-keys "g:refresh │ q:quit │ Q:kill-all")
+    (let* ((hints compilation-history-view-keybind-hints)
+           (sep-pos (cl-position :separator hints))
+           (left-hints (cl-subseq hints 0 sep-pos))
+           (right-hints (if sep-pos (cl-subseq hints (1+ sep-pos)) nil))
+           (hint-string (lambda (h)
+                          (mapconcat (lambda (pair) (format "%s:%s" (car pair) (cdr pair)))
+                                     h " │ ")))
+           (left-str (funcall hint-string left-hints))
+           (right-str (funcall hint-string right-hints))
            (center (concat "[First] [Previous]"
                            (format " Page %d of %d (%d records) " current total-pages total-records)
                            "[Next] [Last]"))
-           (total-width (+ (length left-keys) 2 (length center) 2 (length right-keys)))
-           (center-padding (max 1 (/ (- (window-width) total-width) 3))))
+           (total-width (+ (length left-str) 2 (length center) 2 (length right-str)))
+           (center-padding (max 1 (/ (- (window-width) total-width) 3)))
+           (sep (propertize " │ " 'face 'vtable)))
       ;; Left keys
-      (let ((sep (propertize " │ " 'face 'vtable)))
-        (insert (propertize "RET" 'face 'shadow) ":open" sep
-                (propertize "SPC" 'face 'shadow) ":preview" sep
-                (propertize "n/p" 'face 'shadow) ":nav" sep
-                (propertize "s" 'face 'shadow) ":search" sep
-                (propertize "C-v/M-v" 'face 'shadow) ":page"))
+      (cl-loop for (key . desc) in left-hints
+               for i from 0
+               do (when (> i 0) (insert sep))
+               (insert (propertize key 'face 'shadow) ":" desc))
       (insert (make-string center-padding ?\s))
       ;; Center pagination
       (compilation-history-view--insert-button "First" #'compilation-history-view-first-page on-first)
@@ -383,10 +397,10 @@ mode-line segments (input method, narrowing, global modes, etc.)."
       (compilation-history-view--insert-button "Last" #'compilation-history-view-last-page on-last)
       ;; Right keys
       (insert (make-string center-padding ?\s))
-      (let ((sep (propertize " │ " 'face 'vtable)))
-        (insert (propertize "g" 'face 'shadow) ":refresh" sep
-                (propertize "q" 'face 'shadow) ":quit" sep
-                (propertize "Q" 'face 'shadow) ":kill-all")))))
+      (cl-loop for (key . desc) in right-hints
+               for i from 0
+               do (when (> i 0) (insert sep))
+               (insert (propertize key 'face 'shadow) ":" desc)))))
 
 (defun compilation-history-view--insert-button (label action &optional disabled)
   "Insert a text button with LABEL that call ACTION.
@@ -498,9 +512,9 @@ Reuses existing buffer if still alive, otherwise creates from database."
 (defun compilation-history-view--display-action ()
   "Return a `display-buffer' action for the view split."
   `(display-buffer-in-direction (inhibit-same-window . t)
-                                (direction . ,(if (eq compilation-history-view-split-direction 'horizontal)
-                                                  'below
-                                                'right))))
+    (direction . ,(if (eq compilation-history-view-split-direction 'horizontal)
+                      'below
+                    'right))))
 
 (defun compilation-history-view--display-record (record)
   "Display compilation buffer for RECORD in the other window.
@@ -510,7 +524,7 @@ Returns the displayed buffer."
   (let ((view-buf (get-buffer "*Compilation History*"))
         (buf (compilation-history-view--get-or-create-compilation-buffer record)))
     (if (and compilation-history-view--preview-window
-            (window-live-p compilation-history-view--preview-window))
+             (window-live-p compilation-history-view--preview-window))
         (set-window-buffer compilation-history-view--preview-window buf)
       (let ((win (display-buffer buf (compilation-history-view--display-action))))
         (with-current-buffer view-buf
