@@ -870,19 +870,21 @@ compile-command in the original buffer via setcar on compilation-arguments."
 ;;; Recompile switch buffer tests
 
 (ert-deftest test-recompile-switch-default-switches-buffer ()
-  "Recompile from a compilation-history buffer switches to the new buffer by default."
+  "Recompile from a compilation-history buffer selects the new buffer's window by default."
   (let ((old-buf (generate-new-buffer "*compilation-history-20260331T000000*"))
         (new-buf (generate-new-buffer "*compilation-history-20260331T000001*"))
-        (switched-to nil))
+        (selected-win nil))
     (unwind-protect
         (with-current-buffer old-buf
+          ;; Display new-buf in a window so get-buffer-window finds it
+          (display-buffer new-buf)
           (let ((compilation-history-recompile-switch-behavior 'switch))
             (cl-letf (((symbol-function 'recompile)
                        (lambda (&rest _) new-buf))
-                      ((symbol-function 'switch-to-buffer)
-                       (lambda (buf) (setq switched-to buf))))
+                      ((symbol-function 'select-window)
+                       (lambda (win) (setq selected-win win))))
               (compilation-history--switch-to-recompile-buffer #'recompile))
-            (should (eq switched-to new-buf))))
+            (should (eq selected-win (get-buffer-window new-buf)))))
       (kill-buffer old-buf)
       (kill-buffer new-buf))))
 
@@ -907,16 +909,17 @@ compile-command in the original buffer via setcar on compilation-arguments."
   "With nil setting, recompile does not switch buffers."
   (let ((old-buf (generate-new-buffer "*compilation-history-20260331T000000*"))
         (new-buf (generate-new-buffer "*compilation-history-20260331T000001*"))
-        (switched-to nil))
+        (selected-win nil))
     (unwind-protect
         (with-current-buffer old-buf
+          (display-buffer new-buf)
           (let ((compilation-history-recompile-switch-behavior nil))
             (cl-letf (((symbol-function 'recompile)
                        (lambda (&rest _) new-buf))
-                      ((symbol-function 'switch-to-buffer)
-                       (lambda (buf) (setq switched-to buf))))
+                      ((symbol-function 'select-window)
+                       (lambda (win) (setq selected-win win))))
               (compilation-history--switch-to-recompile-buffer #'recompile))
-            (should-not switched-to)))
+            (should-not selected-win)))
       (kill-buffer old-buf)
       (kill-buffer new-buf))))
 
@@ -924,16 +927,17 @@ compile-command in the original buffer via setcar on compilation-arguments."
   "Recompile from a non-compilation-history buffer does not switch regardless of setting."
   (let ((old-buf (generate-new-buffer "*some-other-buffer*"))
         (new-buf (generate-new-buffer "*compilation-history-20260331T000001*"))
-        (switched-to nil))
+        (selected-win nil))
     (unwind-protect
         (with-current-buffer old-buf
+          (display-buffer new-buf)
           (let ((compilation-history-recompile-switch-behavior 'switch))
             (cl-letf (((symbol-function 'recompile)
                        (lambda (&rest _) new-buf))
-                      ((symbol-function 'switch-to-buffer)
-                       (lambda (buf) (setq switched-to buf))))
+                      ((symbol-function 'select-window)
+                       (lambda (win) (setq selected-win win))))
               (compilation-history--switch-to-recompile-buffer #'recompile))
-            (should-not switched-to)))
+            (should-not selected-win)))
       (kill-buffer old-buf)
       (kill-buffer new-buf))))
 
@@ -952,16 +956,16 @@ compile-command in the original buffer via setcar on compilation-arguments."
 (ert-deftest test-recompile-switch-nil-return-no-error ()
   "No error when recompile returns nil (e.g., error or cancellation)."
   (let ((old-buf (generate-new-buffer "*compilation-history-20260331T000000*"))
-        (switched-to nil))
+        (selected-win nil))
     (unwind-protect
         (with-current-buffer old-buf
           (let ((compilation-history-recompile-switch-behavior 'switch))
             (cl-letf (((symbol-function 'recompile)
                        (lambda (&rest _) nil))
-                      ((symbol-function 'switch-to-buffer)
-                       (lambda (buf) (setq switched-to buf))))
+                      ((symbol-function 'select-window)
+                       (lambda (win) (setq selected-win win))))
               (compilation-history--switch-to-recompile-buffer #'recompile))
-            (should-not switched-to)))
+            (should-not selected-win)))
       (kill-buffer old-buf))))
 
 (provide 'test-compilation-history-core)
